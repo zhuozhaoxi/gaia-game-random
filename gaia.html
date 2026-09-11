@@ -606,7 +606,15 @@
 
         getRandomElements(array, count) {
             count = Math.min(count, array.length);
-            const shuffled = [...array].sort(() => 0.5 - Math.random());
+            const shuffled = [...array];
+
+            // Partial Fisher-Yates shuffle: uniformly sample `count` elements
+            // without sorting the entire array or biasing earlier entries.
+            for (let i = 0; i < count; i++) {
+                const randomIndex = i + Math.floor(Math.random() * (shuffled.length - i));
+                [shuffled[i], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[i]];
+            }
+
             return shuffled.slice(0, count);
         }
     }
