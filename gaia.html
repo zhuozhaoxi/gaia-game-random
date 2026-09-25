@@ -185,6 +185,58 @@
             margin: 0 auto;
         }
 
+        .map-section {
+            max-width: 900px;
+            margin: 18px auto 10px;
+            padding: 14px;
+            border: 1px solid #d8dde6;
+            border-radius: 10px;
+            background: #f7f8fa;
+        }
+
+        .map-section-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .map-section-header h2 {
+            margin: 0;
+            color: #263238;
+            font-size: 18px;
+        }
+
+        #mapStatus {
+            color: #607d8b;
+            font-size: 12px;
+        }
+
+        .map-canvas {
+            overflow: hidden;
+            border-radius: 8px;
+            background: radial-gradient(circle at center, #202a32, #101519 72%);
+        }
+
+        #generatedMap {
+            display: block;
+            width: 100%;
+            height: auto;
+            min-height: 360px;
+        }
+
+        .map-option-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed #ddd;
+        }
+
         @media (max-width: 768px) {
             .circular-container {
                 transform: scale(0.85);
@@ -415,6 +467,16 @@
             </div>
         </div>
     </div>
+
+    <section class="map-section hidden" id="mapSection" aria-label="随机游戏地图">
+        <div class="map-section-header">
+            <h2>4 人扩展随机地图</h2>
+            <span id="mapStatus">10 R2 · 8 三角板 · 10 特殊板</span>
+        </div>
+        <div class="map-canvas">
+            <svg id="generatedMap" role="img" aria-label="随机生成的盖亚游戏地图"></svg>
+        </div>
+    </section>
 </div>
 <!-- 表单 -->
 <form class="form-center" id="gameForm">
@@ -440,6 +502,16 @@
                 <input type="radio" name="lost_fleet" value="1" checked> 加入
             </label>
         </div>
+        <div class="map-option-row" id="mapOptionRow">
+            <span>地图:</span>
+            <label>
+                <input type="radio" name="generate_map" value="1" checked> 是
+            </label>
+            <label>
+                <input type="radio" name="generate_map" value="0"> 否
+            </label>
+            <small style="color:#777;">仅在 4 人且加入扩展时可用</small>
+        </div>
     </div>
     <br>
     <!--    <div style="display: flex; justify-content: center;">-->
@@ -448,7 +520,7 @@
 </form>
 
 <!-- 在表单下方添加生成图片按钮 -->
-<form class="form-center" id="gameForm">
+<form class="form-center" id="shareForm">
     <!-- 现有表单内容 -->
     <div style="display: flex; justify-content: center; margin-top: 10px;">
         <button type="button" id="generateImageButton" class="submit-button">生成分享图片</button>
@@ -464,6 +536,8 @@
     </div>
 </div>
 
+<script src="js/r2-boards.js"></script>
+<script src="js/gaia-map-generator.js"></script>
 <script>
     class GameController {
         constructor() {
@@ -475,6 +549,7 @@
         gaiaRandom(request) {
             const player = request.get('player', 4);
             const lostFleet = request.get('lost_fleet', 0);
+            const generateMap = request.get('generate_map', 0);
 
             const faction = this.getFaction(player, lostFleet);
             let techTileA = this.getTechTileA(lostFleet);
@@ -502,6 +577,7 @@
                 art: art,
                 player: player,
                 lost_fleet: lostFleet,
+                map_layout: player === 4 && lostFleet === 1 && generateMap === 1 ? window.GaiaMapGenerator.generate() : null,
                 lfScoringExtension: player > 2 ?
                     (Math.random() > 0.5 ? 'LFScoringExtension34.jpg' : 'LFScoringExtension12.jpg') :
                     'LFScoringExtension12.jpg'
@@ -624,6 +700,11 @@
 
     // 页面加载完成后设置默认值
     document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[name="player"], input[name="lost_fleet"]').forEach(input => {
+            input.addEventListener('change', syncMapOptionVisibility);
+        });
+        syncMapOptionVisibility();
+
         // 绑定表单提交事件到新的骰子按钮
         document.getElementById('diceButton').addEventListener('click', function (e) {
             e.preventDefault();
@@ -640,12 +721,14 @@
         const formData = new FormData(document.getElementById('gameForm'));
         const player = parseInt(formData.get('player')) || 4;
         const lostFleet = parseInt(formData.get('lost_fleet')) || 0;
+        const generateMap = parseInt(formData.get('generate_map')) || 0;
 
         // 创建请求对象
         const request = {
             get: function (key, defaultValue) {
                 if (key === 'player') return player;
                 if (key === 'lost_fleet') return lostFleet;
+                if (key === 'generate_map') return generateMap;
                 return defaultValue;
             }
         };
@@ -655,6 +738,17 @@
 
         // 更新页面显示
         updatePage(gameData);
+    }
+
+    function syncMapOptionVisibility() {
+        const form = document.getElementById('gameForm');
+        const player = Number(form.querySelector('input[name="player"]:checked')?.value);
+        const lostFleet = Number(form.querySelector('input[name="lost_fleet"]:checked')?.value);
+        const eligible = player === 4 && lostFleet === 1;
+        const optionRow = document.getElementById('mapOptionRow');
+        optionRow.classList.toggle('hidden', !eligible);
+        optionRow.querySelectorAll('input').forEach(input => { input.disabled = !eligible; });
+        if (!eligible) document.getElementById('mapSection').classList.add('hidden');
     }
 
     // 根据游戏数据更新页面显示
@@ -772,6 +866,21 @@
         document.getElementById('rs5').src = `doc/gaia/${data.rs[5]}`;
         document.getElementById('egs0').src = `doc/gaia/${data.egs[0]}`;
         document.getElementById('egs1').src = `doc/gaia/${data.egs[1]}`;
+
+        const mapSection = document.getElementById('mapSection');
+        if (data.map_layout) {
+            window.currentGaiaMapLayout = data.map_layout;
+            window.GaiaMapGenerator.render(document.getElementById('generatedMap'), data.map_layout);
+            const validation = window.GaiaMapGenerator.validate(data.map_layout);
+            mapSection.dataset.valid = validation.valid;
+            document.getElementById('mapStatus').textContent = `10 R2 · 8 三角板 · 10 特殊板 · 同色相邻 ${validation.planetConflicts}`;
+            mapSection.classList.remove('hidden');
+        } else {
+            window.currentGaiaMapLayout = null;
+            delete mapSection.dataset.valid;
+            document.getElementById('generatedMap').replaceChildren();
+            mapSection.classList.add('hidden');
+        }
     }
 
     // 生成分享图片功能
