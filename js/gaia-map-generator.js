@@ -211,6 +211,68 @@
         if (data.rotation) image.setAttribute('transform', `rotate(${data.rotation} ${data.x} ${data.y})`);
         group.appendChild(image);
     }
+    function boardCells(layout) {
+        return [
+            ...layout.r2.map(sector => ({
+                owner: `r2:${sector.number}`,
+                cells: placedR2Cells(sector).map(cell => [cell.q, cell.r])
+            })),
+            ...layout.triangles.map(sector => ({
+                owner: `triangle:${sector.number}`,
+                cells: sector.cells
+            })),
+            ...layout.specials.map((sector, index) => ({
+                owner: `special:${index}`,
+                cells: [[sector.q, sector.r]]
+            }))
+        ];
+    }
+    function boardSeamPath(layout) {
+        const edges = new Map();
+        boardCells(layout).forEach(board => board.cells.forEach(([q, r]) => {
+            const center = pixel(q, r);
+            const vertices = Array.from({length: 6}, (_, index) => {
+                const angle = Math.PI / 3 * index;
+                return {
+                    x: center.x + HEX_SIZE * Math.cos(angle),
+                    y: center.y + HEX_SIZE * Math.sin(angle)
+                };
+            });
+            vertices.forEach((start, index) => {
+                const end = vertices[(index + 1) % vertices.length];
+                const startKey = `${start.x.toFixed(4)},${start.y.toFixed(4)}`;
+                const endKey = `${end.x.toFixed(4)},${end.y.toFixed(4)}`;
+                const edgeKey = [startKey, endKey].sort().join('|');
+                const edge = edges.get(edgeKey) || {start, end, owners: new Set()};
+                edge.owners.add(board.owner);
+                edges.set(edgeKey, edge);
+            });
+        }));
+        return [...edges.values()]
+            .filter(edge => edge.owners.size > 1)
+            .map(edge => `M ${edge.start.x} ${edge.start.y} L ${edge.end.x} ${edge.end.y}`)
+            .join(' ');
+    }
+    function appendBoardSeams(group, layout) {
+        const pathData = boardSeamPath(layout);
+        if (!pathData) return;
+        [
+            {stroke: '#07141b', width: 2.2, opacity: 0.88},
+            {stroke: '#405c74', width: 1, opacity: 0.95}
+        ].forEach(style => {
+            const path = document.createElementNS(NS, 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', style.stroke);
+            path.setAttribute('stroke-width', style.width);
+            path.setAttribute('stroke-opacity', style.opacity);
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('vector-effect', 'non-scaling-stroke');
+            path.dataset.mapSeam = '';
+            path.setAttribute('aria-hidden', 'true');
+            group.appendChild(path);
+        });
+    }
     function generate() {
         const layout = {
             version: 1,
@@ -253,6 +315,7 @@
                 rotation: 90, rotationStep: 0, label: `特殊板块 ${sector.image.replace('.png', '')}`
             });
         });
+        appendBoardSeams(group, layout);
         svg.replaceChildren(group);
         const bounds = rotatedBounds(layout);
         const padding = 18;

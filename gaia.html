@@ -883,9 +883,19 @@
         if (!svg || !svg.querySelector('image') || svg.closest('.hidden')) return null;
 
         const bounds = svg.getBoundingClientRect();
+        const overlaySvg = svg.cloneNode(true);
+        overlaySvg.removeAttribute('id');
+        overlaySvg.querySelectorAll('image').forEach(node => node.remove());
+        overlaySvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        overlaySvg.setAttribute('width', bounds.width);
+        overlaySvg.setAttribute('height', bounds.height);
+        const overlaySource = overlaySvg.querySelector('[data-map-seam]')
+            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(overlaySvg))}`
+            : null;
         return {
             width: bounds.width,
             height: bounds.height,
+            overlaySource,
             images: Array.from(svg.querySelectorAll('image')).map(node => {
                 const matrix = node.getCTM();
                 const x = Number(node.getAttribute('x'));
@@ -932,6 +942,19 @@
                 }));
             }
         });
+        if (snapshot.overlaySource) {
+            const overlay = document.createElement('img');
+            overlay.src = snapshot.overlaySource;
+            overlay.alt = '';
+            overlay.style.cssText = `position:absolute;inset:0;width:${snapshot.width}px;height:${snapshot.height}px;max-width:none;`;
+            replacement.appendChild(overlay);
+            if (!overlay.complete) {
+                loading.push(new Promise(resolve => {
+                    overlay.addEventListener('load', resolve, {once: true});
+                    overlay.addEventListener('error', resolve, {once: true});
+                }));
+            }
+        }
 
         stage.appendChild(replacement);
         document.body.appendChild(stage);
