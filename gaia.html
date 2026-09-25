@@ -185,6 +185,35 @@
             margin: 0 auto;
         }
 
+        .map-section {
+            max-width: 900px;
+            margin: 18px auto 10px;
+        }
+
+        .map-canvas {
+            overflow: hidden;
+            border-radius: 8px;
+            background: radial-gradient(circle at center, #202a32, #101519 72%);
+        }
+
+        #generatedMap {
+            display: block;
+            width: 100%;
+            height: auto;
+            min-height: 360px;
+        }
+
+        .map-option-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed #ddd;
+        }
+
         @media (max-width: 768px) {
             .circular-container {
                 transform: scale(0.85);
@@ -415,6 +444,13 @@
             </div>
         </div>
     </div>
+
+    <section class="map-section hidden" id="mapSection" aria-label="随机游戏地图">
+        <div class="map-canvas">
+            <svg id="generatedMap" role="img" aria-label="随机生成的盖亚游戏地图"></svg>
+        </div>
+    </section>
+
 </div>
 <!-- 表单 -->
 <form class="form-center" id="gameForm">
@@ -440,6 +476,16 @@
                 <input type="radio" name="lost_fleet" value="1" checked> 加入
             </label>
         </div>
+        <div class="map-option-row" id="mapOptionRow">
+            <span>地图:</span>
+            <label>
+                <input type="radio" name="generate_map" value="1" checked> 是
+            </label>
+            <label>
+                <input type="radio" name="generate_map" value="0"> 否
+            </label>
+            <small style="color:#777;">仅在 4 人且加入扩展时可用</small>
+        </div>
     </div>
     <br>
     <!--    <div style="display: flex; justify-content: center;">-->
@@ -448,7 +494,7 @@
 </form>
 
 <!-- 在表单下方添加生成图片按钮 -->
-<form class="form-center" id="gameForm">
+<form class="form-center" id="shareForm">
     <!-- 现有表单内容 -->
     <div style="display: flex; justify-content: center; margin-top: 10px;">
         <button type="button" id="generateImageButton" class="submit-button">生成分享图片</button>
@@ -464,6 +510,9 @@
     </div>
 </div>
 
+<script src="js/map-share-assets.js"></script>
+<script src="js/r2-boards.js"></script>
+<script src="js/gaia-map-generator.js"></script>
 <script>
     class GameController {
         constructor() {
@@ -475,6 +524,7 @@
         gaiaRandom(request) {
             const player = request.get('player', 4);
             const lostFleet = request.get('lost_fleet', 0);
+            const generateMap = request.get('generate_map', 0);
 
             const faction = this.getFaction(player, lostFleet);
             let techTileA = this.getTechTileA(lostFleet);
@@ -502,6 +552,7 @@
                 art: art,
                 player: player,
                 lost_fleet: lostFleet,
+                map_layout: player === 4 && lostFleet === 1 && generateMap === 1 ? window.GaiaMapGenerator.generate() : null,
                 lfScoringExtension: player > 2 ?
                     (Math.random() > 0.5 ? 'LFScoringExtension34.jpg' : 'LFScoringExtension12.jpg') :
                     'LFScoringExtension12.jpg'
@@ -624,6 +675,11 @@
 
     // 页面加载完成后设置默认值
     document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[name="player"], input[name="lost_fleet"]').forEach(input => {
+            input.addEventListener('change', syncMapOptionVisibility);
+        });
+        syncMapOptionVisibility();
+
         // 绑定表单提交事件到新的骰子按钮
         document.getElementById('diceButton').addEventListener('click', function (e) {
             e.preventDefault();
@@ -640,12 +696,14 @@
         const formData = new FormData(document.getElementById('gameForm'));
         const player = parseInt(formData.get('player')) || 4;
         const lostFleet = parseInt(formData.get('lost_fleet')) || 0;
+        const generateMap = parseInt(formData.get('generate_map')) || 0;
 
         // 创建请求对象
         const request = {
             get: function (key, defaultValue) {
                 if (key === 'player') return player;
                 if (key === 'lost_fleet') return lostFleet;
+                if (key === 'generate_map') return generateMap;
                 return defaultValue;
             }
         };
@@ -655,6 +713,17 @@
 
         // 更新页面显示
         updatePage(gameData);
+    }
+
+    function syncMapOptionVisibility() {
+        const form = document.getElementById('gameForm');
+        const player = Number(form.querySelector('input[name="player"]:checked')?.value);
+        const lostFleet = Number(form.querySelector('input[name="lost_fleet"]:checked')?.value);
+        const eligible = player === 4 && lostFleet === 1;
+        const optionRow = document.getElementById('mapOptionRow');
+        optionRow.classList.toggle('hidden', !eligible);
+        optionRow.querySelectorAll('input').forEach(input => { input.disabled = !eligible; });
+        if (!eligible) document.getElementById('mapSection').classList.add('hidden');
     }
 
     // 根据游戏数据更新页面显示
@@ -772,6 +841,20 @@
         document.getElementById('rs5').src = `doc/gaia/${data.rs[5]}`;
         document.getElementById('egs0').src = `doc/gaia/${data.egs[0]}`;
         document.getElementById('egs1').src = `doc/gaia/${data.egs[1]}`;
+
+        const mapSection = document.getElementById('mapSection');
+        if (data.map_layout) {
+            window.currentGaiaMapLayout = data.map_layout;
+            window.GaiaMapGenerator.render(document.getElementById('generatedMap'), data.map_layout);
+            const validation = window.GaiaMapGenerator.validate(data.map_layout);
+            mapSection.dataset.valid = validation.valid;
+            mapSection.classList.remove('hidden');
+        } else {
+            window.currentGaiaMapLayout = null;
+            delete mapSection.dataset.valid;
+            document.getElementById('generatedMap').replaceChildren();
+            mapSection.classList.add('hidden');
+        }
     }
 
     // 生成分享图片功能
@@ -795,36 +878,140 @@
         });
     });
 
+    function getMapCaptureSnapshot() {
+        const svg = document.getElementById('generatedMap');
+        if (!svg || !svg.querySelector('image') || svg.closest('.hidden')) return null;
+
+        const bounds = svg.getBoundingClientRect();
+        const overlaySvg = svg.cloneNode(true);
+        overlaySvg.removeAttribute('id');
+        overlaySvg.querySelectorAll('image').forEach(node => node.remove());
+        overlaySvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        overlaySvg.setAttribute('width', bounds.width);
+        overlaySvg.setAttribute('height', bounds.height);
+        const overlaySource = overlaySvg.querySelector('[data-map-seam]')
+            ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(overlaySvg))}`
+            : null;
+        return {
+            width: bounds.width,
+            height: bounds.height,
+            overlaySource,
+            images: Array.from(svg.querySelectorAll('image')).map(node => {
+                const matrix = node.getCTM();
+                const x = Number(node.getAttribute('x'));
+                const y = Number(node.getAttribute('y'));
+                return {
+                    src: window.GAIA_MAP_SHARE_ASSETS?.[node.getAttribute('href').split('/').pop()] || node.getAttribute('href'),
+                    width: Number(node.getAttribute('width')),
+                    height: Number(node.getAttribute('height')),
+                    matrix: {
+                        a: matrix.a,
+                        b: matrix.b,
+                        c: matrix.c,
+                        d: matrix.d,
+                        e: matrix.e + matrix.a * x + matrix.c * y,
+                        f: matrix.f + matrix.b * x + matrix.d * y
+                    }
+                };
+            })
+        };
+    }
+
+    async function captureMapCanvas(snapshot, scale) {
+        if (!snapshot) return null;
+        const stage = document.createElement('div');
+        stage.className = 'map-canvas';
+        stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${snapshot.width}px;height:${snapshot.height}px;`;
+        const replacement = document.createElement('div');
+        replacement.id = 'generatedMapCapture';
+        replacement.setAttribute('role', 'img');
+        replacement.setAttribute('aria-label', '随机生成的盖亚游戏地图');
+        replacement.style.cssText = `position:relative;display:block;width:${snapshot.width}px;height:${snapshot.height}px;min-height:0;overflow:hidden;isolation:isolate;`;
+
+        const loading = [];
+        snapshot.images.forEach(item => {
+            const image = document.createElement('img');
+            image.src = item.src;
+            image.alt = '';
+            image.style.cssText = `position:absolute;z-index:1;left:0;top:0;width:${item.width}px;height:${item.height}px;max-width:none;transform-origin:0 0;transform:matrix(${item.matrix.a},${item.matrix.b},${item.matrix.c},${item.matrix.d},${item.matrix.e},${item.matrix.f});`;
+            replacement.appendChild(image);
+            if (!image.complete) {
+                loading.push(new Promise(resolve => {
+                    image.addEventListener('load', resolve, {once: true});
+                    image.addEventListener('error', resolve, {once: true});
+                }));
+            }
+        });
+        if (snapshot.overlaySource) {
+            const overlay = document.createElement('img');
+            overlay.src = snapshot.overlaySource;
+            overlay.alt = '';
+            overlay.style.cssText = `position:absolute;z-index:2;inset:0;width:${snapshot.width}px;height:${snapshot.height}px;max-width:none;pointer-events:none;`;
+            replacement.appendChild(overlay);
+            if (!overlay.complete) {
+                loading.push(new Promise(resolve => {
+                    overlay.addEventListener('load', resolve, {once: true});
+                    overlay.addEventListener('error', resolve, {once: true});
+                }));
+            }
+        }
+
+        stage.appendChild(replacement);
+        document.body.appendChild(stage);
+        try {
+            await Promise.all(loading);
+            return await html2canvas(stage, {
+                scale,
+                useCORS: true,
+                backgroundColor: null
+            });
+        } finally {
+            stage.remove();
+        }
+    }
+
     // 生成分享图片
-    function generateShareImage() {
+    async function generateShareImage() {
         // 显示加载提示
         const modal = document.getElementById('imageModal');
         const imageElement = document.getElementById('generatedImage');
+        const mapCaptureSnapshot = getMapCaptureSnapshot();
         imageElement.src = '';
         imageElement.alt = '正在生成图片...';
         modal.style.display = 'block';
 
-        // 使用html2canvas生成图片
-        import('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(() => {
+        try {
+            // 使用html2canvas生成图片
+            await import('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
             const contentElement = document.querySelector('.content');
-
-            html2canvas(contentElement, {
-                scale: 2, // 提高图片质量
+            const contentBounds = contentElement.getBoundingClientRect();
+            const mapBounds = document.querySelector('.map-canvas').getBoundingClientRect();
+            const scale = 2;
+            const capturedMap = await captureMapCanvas(mapCaptureSnapshot, scale);
+            const canvas = await html2canvas(contentElement, {
+                scale, // 提高图片质量
                 useCORS: true,
                 backgroundColor: '#fff'
-            }).then(canvas => {
-                // 将canvas转换为图片
-                const imageData = canvas.toDataURL('image/png');
-                imageElement.src = imageData;
-                imageElement.alt = '盖亚随机结果';
-            }).catch(error => {
-                console.error('生成图片失败:', error);
-                imageElement.alt = '生成图片失败';
             });
-        }).catch(error => {
-            console.error('加载html2canvas失败:', error);
-            imageElement.alt = '加载图片生成工具失败';
-        });
+            if (capturedMap) {
+                const context = canvas.getContext('2d');
+                context.save();
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                context.drawImage(
+                    capturedMap,
+                    (mapBounds.left - contentBounds.left) * scale,
+                    (mapBounds.top - contentBounds.top) * scale
+                );
+                context.restore();
+            }
+            // 将canvas转换为图片
+            const imageData = canvas.toDataURL('image/png');
+            imageElement.src = imageData;
+            imageElement.alt = '盖亚随机结果';
+        } catch (error) {
+            console.error('生成图片失败:', error);
+            imageElement.alt = '生成图片失败';
+        }
     }
 
     // 下载图片
