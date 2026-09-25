@@ -9,7 +9,7 @@
 - `js/map-share-assets.js`：分享图片专用的轻量内嵌地图素材，避免 SVG 图片在截图时丢失。
 - `gaia.html`：配置选项与正式页面集成。
 - `map-debugger/index.html`：独立地图 Debugger，可查看行星坐标、定位格子并检查随机布局。
-- `scripts/compress-map-assets.py`：按页面实际显示尺寸和画质评分，将每张地图 PNG 自适应压缩至 20,000 字节以内。
+- `scripts/compress-map-assets.py`：按页面实际显示尺寸和画质评分，自适应压缩地图 PNG。R2 上限为 20 KB，三角板为 10 KB，特殊单格为 5 KB。
 
 当前规则：
 
@@ -25,5 +25,5 @@
 
 地图原图更新后：
 
-1. 安装 Pillow 后运行 `python3 scripts/compress-map-assets.py`，将每张地图图片自适应压缩到 20,000 字节以内。
+1. 安装 Pillow 后运行 `python3 scripts/compress-map-assets.py`，按 R2 20 KB、三角板 10 KB、特殊单格 5 KB 的上限自适应压缩。
 2. 运行 `node scripts/build-map-share-assets.js`，同步生成分享图片使用的内嵌素材。
