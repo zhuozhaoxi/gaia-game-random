@@ -188,29 +188,6 @@
         .map-section {
             max-width: 900px;
             margin: 18px auto 10px;
-            padding: 14px;
-            border: 1px solid #d8dde6;
-            border-radius: 10px;
-            background: #f7f8fa;
-        }
-
-        .map-section-header {
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
-
-        .map-section-header h2 {
-            margin: 0;
-            color: #263238;
-            font-size: 18px;
-        }
-
-        #mapStatus {
-            color: #607d8b;
-            font-size: 12px;
         }
 
         .map-canvas {
@@ -469,10 +446,6 @@
     </div>
 
     <section class="map-section hidden" id="mapSection" aria-label="随机游戏地图">
-        <div class="map-section-header">
-            <h2>4 人扩展随机地图</h2>
-            <span id="mapStatus">10 R2 · 8 三角板 · 10 特殊板</span>
-        </div>
         <div class="map-canvas">
             <svg id="generatedMap" role="img" aria-label="随机生成的盖亚游戏地图"></svg>
         </div>
@@ -873,7 +846,6 @@
             window.GaiaMapGenerator.render(document.getElementById('generatedMap'), data.map_layout);
             const validation = window.GaiaMapGenerator.validate(data.map_layout);
             mapSection.dataset.valid = validation.valid;
-            document.getElementById('mapStatus').textContent = `10 R2 · 8 三角板 · 10 特殊板 · 同色相邻 ${validation.planetConflicts}`;
             mapSection.classList.remove('hidden');
         } else {
             window.currentGaiaMapLayout = null;
