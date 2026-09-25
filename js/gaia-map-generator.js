@@ -286,10 +286,16 @@
     }
     function render(svg, layout) {
         const group = document.createElementNS(NS, 'g');
+        const imageLayer = document.createElementNS(NS, 'g');
+        const seamLayer = document.createElementNS(NS, 'g');
         group.setAttribute('transform', `rotate(${MAP_ROTATION})`);
+        imageLayer.dataset.mapLayer = 'images';
+        seamLayer.dataset.mapLayer = 'seams';
+        seamLayer.setAttribute('pointer-events', 'none');
+        group.append(imageLayer, seamLayer);
         layout.r2.forEach(sector => {
             const center = pixel(sector.q, sector.r);
-            appendImage(group, {
+            appendImage(imageLayer, {
                 kind: 'r2', number: sector.number, image: R2_LIBRARY.boards[sector.number].image,
                 x: center.x, y: center.y, width: HEX_SIZE * 8, height: HEX_SIZE * SQRT3 * 5,
                 rotation: sector.rotation * 60, rotationStep: sector.rotation,
@@ -300,7 +306,7 @@
             const centers = sector.cells.map(([q, r]) => pixel(q, r));
             const x = centers.reduce((sum, point) => sum + point.x, 0) / centers.length;
             const y = centers.reduce((sum, point) => sum + point.y, 0) / centers.length;
-            appendImage(group, {
+            appendImage(imageLayer, {
                 kind: 'triangle', number: sector.number, image: `${sector.number}-${sector.side}.png`,
                 x, y, width: HEX_SIZE * SQRT3 * 2 * 370 / 328, height: HEX_SIZE * SQRT3 * 2,
                 rotation: sector.baseRotation + sector.rotation * 120, rotationStep: sector.rotation,
@@ -309,13 +315,13 @@
         });
         layout.specials.forEach(sector => {
             const center = pixel(sector.q, sector.r);
-            appendImage(group, {
+            appendImage(imageLayer, {
                 kind: 'special', number: sector.image.replace('.png', ''), image: sector.image,
                 x: center.x, y: center.y, width: HEX_SIZE * SQRT3, height: HEX_SIZE * 2,
                 rotation: 90, rotationStep: 0, label: `特殊板块 ${sector.image.replace('.png', '')}`
             });
         });
-        appendBoardSeams(group, layout);
+        appendBoardSeams(seamLayer, layout);
         svg.replaceChildren(group);
         const bounds = rotatedBounds(layout);
         const padding = 18;

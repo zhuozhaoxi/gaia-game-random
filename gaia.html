@@ -926,14 +926,14 @@
         replacement.id = 'generatedMapCapture';
         replacement.setAttribute('role', 'img');
         replacement.setAttribute('aria-label', '随机生成的盖亚游戏地图');
-        replacement.style.cssText = `position:relative;display:block;width:${snapshot.width}px;height:${snapshot.height}px;min-height:0;overflow:hidden;`;
+        replacement.style.cssText = `position:relative;display:block;width:${snapshot.width}px;height:${snapshot.height}px;min-height:0;overflow:hidden;isolation:isolate;`;
 
         const loading = [];
         snapshot.images.forEach(item => {
             const image = document.createElement('img');
             image.src = item.src;
             image.alt = '';
-            image.style.cssText = `position:absolute;left:0;top:0;width:${item.width}px;height:${item.height}px;max-width:none;transform-origin:0 0;transform:matrix(${item.matrix.a},${item.matrix.b},${item.matrix.c},${item.matrix.d},${item.matrix.e},${item.matrix.f});`;
+            image.style.cssText = `position:absolute;z-index:1;left:0;top:0;width:${item.width}px;height:${item.height}px;max-width:none;transform-origin:0 0;transform:matrix(${item.matrix.a},${item.matrix.b},${item.matrix.c},${item.matrix.d},${item.matrix.e},${item.matrix.f});`;
             replacement.appendChild(image);
             if (!image.complete) {
                 loading.push(new Promise(resolve => {
@@ -946,7 +946,7 @@
             const overlay = document.createElement('img');
             overlay.src = snapshot.overlaySource;
             overlay.alt = '';
-            overlay.style.cssText = `position:absolute;inset:0;width:${snapshot.width}px;height:${snapshot.height}px;max-width:none;`;
+            overlay.style.cssText = `position:absolute;z-index:2;inset:0;width:${snapshot.width}px;height:${snapshot.height}px;max-width:none;pointer-events:none;`;
             replacement.appendChild(overlay);
             if (!overlay.complete) {
                 loading.push(new Promise(resolve => {
