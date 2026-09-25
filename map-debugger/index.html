@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111510" />
+  <title>HEXFIELD · 六边形地图编辑器</title>
+  <style>
+    :root {
+      --ink: #1b2018;
+      --muted: #6e7469;
+      --paper: #f1efe7;
+      --panel: rgba(250, 249, 243, .91);
+      --line: rgba(27, 32, 24, .16);
+      --accent: #c8553d;
+      --green: #577d55;
+      --gold: #d7a13b;
+      --blue: #3d718d;
+      --purple: #735e8f;
+      --danger: #a94838;
+      --shadow: 0 24px 70px rgba(23, 27, 20, .15);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255,255,255,.86), transparent 34%),
+        repeating-linear-gradient(0deg, rgba(30,36,26,.018) 0, rgba(30,36,26,.018) 1px, transparent 1px, transparent 4px),
+        var(--paper);
+    }
+
+    button, input, label { font: inherit; }
+    button { color: inherit; }
+
+    .app { height: 100%; display: grid; grid-template-columns: 288px minmax(0, 1fr); }
+    .sidebar {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid rgba(27,32,24,.14);
+      background: var(--panel);
+      backdrop-filter: blur(22px);
+      box-shadow: 12px 0 45px rgba(30,34,25,.05);
+    }
+
+    .brand { padding: 28px 26px 22px; border-bottom: 1px solid var(--line); }
+    .brand-row { display: flex; align-items: center; gap: 11px; }
+    .brand-mark { width: 31px; height: 27px; color: var(--accent); flex: 0 0 auto; }
+    .brand h1 { margin: 0; font: 800 18px/1 "Arial Narrow", Inter, sans-serif; letter-spacing: .11em; }
+    .brand p { margin: 10px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; }
+
+    .tools { padding: 22px 20px; overflow: auto; }
+    .eyebrow { margin: 0 0 12px 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 20px; }
+    .btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 0 13px;
+      border: 1px solid rgba(27,32,24,.17);
+      border-radius: 10px;
+      background: rgba(255,255,255,.44);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: background .15s, transform .15s;
+    }
+    .btn:hover { background: #fff; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .58; cursor: wait; transform: none; }
+    .btn svg { width: 15px; height: 15px; }
+    .randomize-btn { width: 100%; margin-top: 9px; border-color: rgba(200,85,61,.34); background: rgba(200,85,61,.1); color: var(--accent); }
+    .randomize-btn:hover { background: rgba(200,85,61,.17); }
+
+    .section { margin-top: 27px; }
+    .stat-card { padding: 17px 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.35); }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 10px; }
+    .stat span { display: block; color: var(--muted); font-size: 10px; letter-spacing: .05em; }
+    .stat strong { display: block; margin-top: 4px; font: 750 19px/1.1 Inter, sans-serif; font-variant-numeric: tabular-nums; }
+    .coord { color: var(--accent); }
+
+    .annotation-card { padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.35); }
+    .annotation-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+    .annotation-head strong { font-size: 12px; }
+    .annotation-head span { color: var(--accent); font: 750 11px/1 Inter, sans-serif; font-variant-numeric: tabular-nums; }
+    #annotationInput {
+      width: 100%;
+      min-height: 72px;
+      resize: vertical;
+      padding: 10px 11px;
+      border: 1px solid rgba(27,32,24,.17);
+      border-radius: 9px;
+      outline: none;
+      background: rgba(255,255,255,.64);
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.5;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    #annotationInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,85,61,.12); }
+    #annotationInput::placeholder { color: #a3a69d; }
+    .annotation-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; color: var(--muted); font-size: 9px; }
+    .text-btn { border: 0; padding: 2px 0; background: transparent; color: var(--danger); cursor: pointer; font-size: 10px; }
+    .text-btn:hover { text-decoration: underline; }
+
+    .debug-toggle { width: 100%; justify-content: space-between; padding: 0 14px 0 15px; }
+    .debug-toggle::after { content: '未开启'; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+    .debug-toggle.active { border-color: rgba(200,85,61,.45); background: rgba(200,85,61,.1); color: var(--accent); }
+    .debug-toggle.active::after { content: '已开启'; color: var(--accent); }
+    .debug-panel { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.35); overflow: hidden; }
+    .debug-panel[hidden] { display: none; }
+    .debug-summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .debug-summary strong { color: var(--ink); font-size: 11px; }
+    .debug-groups { max-height: 360px; overflow: auto; padding: 5px 8px 9px; }
+    .debug-group { padding-top: 7px; }
+    .debug-group-head { display: flex; align-items: center; gap: 7px; padding: 4px 4px 6px; color: var(--muted); font-size: 10px; font-weight: 750; }
+    .debug-group-head b { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .planet-dot { width: 9px; height: 9px; border: 1px solid rgba(27,32,24,.32); border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
+    .debug-coordinate { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin: 2px 0; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; color: var(--ink); font-size: 10px; text-align: left; }
+    .debug-coordinate:hover { background: rgba(27,32,24,.07); }
+    .debug-coordinate.active { background: rgba(215,161,59,.18); box-shadow: inset 0 0 0 1px rgba(215,161,59,.42); }
+    .debug-board { color: var(--muted); font-weight: 700; }
+    .debug-coord { font-weight: 760; font-variant-numeric: tabular-nums; }
+
+    .help { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 11px; line-height: 1.7; }
+    .help li { display: flex; gap: 9px; align-items: center; }
+    .key { min-width: 42px; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: rgba(255,255,255,.5); color: var(--ink); text-align: center; font-size: 9px; }
+
+    .footer { margin-top: auto; padding: 17px 26px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .footer b { color: var(--ink); }
+
+    .workspace { position: relative; min-width: 0; overflow: hidden; cursor: grab; }
+    .workspace.dragging { cursor: grabbing; }
+    #map { display: block; width: 100%; height: 100%; user-select: none; touch-action: none; }
+
+    .grid-line { stroke: transparent; stroke-width: 1.15; vector-effect: non-scaling-stroke; transition: stroke .12s ease; }
+    .hex { fill: transparent; cursor: pointer; }
+    .hex:hover { fill: transparent; stroke: rgba(255,255,255,.88); stroke-width: 2; }
+    .hex.preview { stroke: #fff; stroke-width: 3; filter: drop-shadow(0 2px 3px rgba(0,0,0,.15)); }
+    .hex.selected { stroke: var(--accent); stroke-width: 3; filter: drop-shadow(0 2px 4px rgba(200,85,61,.28)); }
+    .hex.debug-highlight { stroke: #ffd84d; stroke-width: 4.5; filter: drop-shadow(0 0 5px rgba(255,216,77,.95)); }
+    .board-image { pointer-events: none; }
+    .note-dot { fill: #fffdf5; stroke: #22271e; stroke-width: 1.35; vector-effect: non-scaling-stroke; pointer-events: none; display: none; }
+    .note-dot.has-value { display: block; }
+
+    .topbar {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      pointer-events: none;
+    }
+    .map-title, .zoom-controls { pointer-events: auto; background: rgba(249,248,241,.86); border: 1px solid var(--line); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
+    .map-title { padding: 12px 16px; border-radius: 12px; }
+    .map-title strong { display: block; font-size: 12px; letter-spacing: .04em; }
+    .map-title span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .zoom-controls { display: flex; align-items: center; padding: 4px; border-radius: 11px; }
+    .icon-btn { width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 20px; line-height: 1; }
+    .icon-btn:hover { background: rgba(27,32,24,.08); }
+    #zoomValue { width: 48px; text-align: center; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      z-index: 9;
+      transform: translate(-50%, 16px);
+      padding: 10px 15px;
+      border-radius: 9px;
+      background: #20251d;
+      color: #f8f7f1;
+      box-shadow: 0 10px 40px rgba(20,24,17,.3);
+      font-size: 11px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s, transform .2s;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #importFile { display: none; }
+
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+      .sidebar { grid-row: 2; max-height: 330px; border-right: 0; border-top: 1px solid var(--line); }
+      .brand { display: none; }
+      .tools { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; padding: 14px 15px; }
+      .section { margin: 0; }
+      .section.help-section, .footer { display: none; }
+      .annotation-section { grid-column: 1 / -1; }
+      .debug-section { grid-column: 1 / -1; }
+      .debug-groups { max-height: 210px; }
+      #annotationInput { min-height: 54px; resize: none; }
+      .tool-row { margin-top: 11px; }
+      .workspace { grid-row: 1; }
+      .topbar { top: 10px; left: 10px; right: 10px; }
+      .map-title { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <header class="brand">
+        <div class="brand-row">
+          <svg class="brand-mark" viewBox="0 0 40 35" aria-hidden="true"><path d="M10 1h20l10 16.5L30 34H10L0 17.5z" fill="currentColor"/><path d="M13 7h14l7 10.5-7 10.5H13L6 17.5z" fill="#f1efe7"/></svg>
+          <h1>HEXFIELD</h1>
+        </div>
+        <p>TACTICAL MAP WORKBENCH / 01</p>
+      </header>
+
+      <div class="tools">
+        <section>
+          <p class="eyebrow">地图数据</p>
+          <div class="tool-row" style="margin-top:0">
+            <button class="btn" id="exportBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg>导出
+            </button>
+            <button class="btn" id="importBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L8 8m4-4 4 4M5 20h14"/></svg>导入
+            </button>
+          </div>
+          <button class="btn randomize-btn" id="randomizeMapBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 3h5v5M4 20l5.5-5.5M21 3l-6.8 6.8M15 16h6v5M4 4l17 17"/></svg>重新生成地图
+          </button>
+          <input id="importFile" type="file" accept="application/json,.json" />
+        </section>
+
+        <section class="section">
+          <p class="eyebrow">地图状态</p>
+          <div class="stat-card">
+            <div class="stat-grid">
+              <div class="stat"><span>地图格</span><strong id="totalCount">224</strong></div>
+              <div class="stat"><span>游戏板块</span><strong>28</strong></div>
+              <div class="stat"><span>坐标 Q / R</span><strong class="coord" id="coordValue">0 / 0</strong></div>
+              <div class="stat"><span>距中心</span><strong id="distanceValue">0</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section annotation-section">
+          <p class="eyebrow">位置标注</p>
+          <div class="annotation-card">
+            <div class="annotation-head"><strong>当前格子</strong><span id="annotationCoord">Q 0 · R 0</span></div>
+            <textarea id="annotationInput" maxlength="160" placeholder="输入地名、事件或战术备注…"></textarea>
+            <div class="annotation-meta"><span><b id="noteCount">0</b> 个格子有标注</span><button class="text-btn" id="clearNoteBtn">清除此格</button></div>
+          </div>
+        </section>
+
+        <section class="section debug-section">
+          <p class="eyebrow">行星坐标调试</p>
+          <button class="btn debug-toggle" id="debugToggle" type="button" aria-expanded="false" aria-controls="debugPanel">Debugger 模式</button>
+          <div class="debug-panel" id="debugPanel" hidden>
+            <div class="debug-summary"><span>按行星种类分组</span><strong id="debugTotal">0 个行星</strong></div>
+            <div class="debug-groups" id="debugGroups"></div>
+          </div>
+        </section>
+
+        <section class="section help-section">
+          <p class="eyebrow">操作</p>
+          <ul class="help">
+            <li><span class="key">点击</span> 选择格子并填写标注</li>
+            <li><span class="key">随机</span> 重新生成合规地图</li>
+            <li><span class="key">拖拽</span> 移动画布</li>
+            <li><span class="key">滚轮</span> 缩放地图</li>
+            <li><span class="key">Ctrl Z</span> 撤回上一步</li>
+            <li><span class="key">Space</span> 回到中心</li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="footer"><b>224 个地图格</b> · 标注自动保存在本机<br/>默认格子边界保持透明</footer>
+    </aside>
+
+    <section class="workspace" id="workspace" aria-label="六边形地图编辑区域">
+      <svg id="map" aria-label="由 224 个有效格组成的六边形地图">
+        <defs>
+          <filter id="mapShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1b2018" flood-opacity=".12"/></filter>
+        </defs>
+        <g id="viewport"><g id="boardImageLayer"></g><g id="hexLayer" filter="url(#mapShadow)"></g><g id="noteLayer"></g></g>
+      </svg>
+      <div class="topbar">
+        <div class="map-title"><strong>无名疆域 · 001</strong><span>平边朝上 / <b>224 CELLS</b></span></div>
+        <div class="zoom-controls" aria-label="缩放控制">
+          <button class="icon-btn" id="zoomOut" aria-label="缩小">−</button>
+          <span id="zoomValue">100%</span>
+          <button class="icon-btn" id="zoomIn" aria-label="放大">＋</button>
+          <button class="icon-btn" id="resetView" aria-label="回到中心" title="回到中心">⌂</button>
+        </div>
+      </div>
+      <div class="toast" id="toast" role="status"></div>
+    </section>
+  </main>
+
+  <script src="../js/r2-boards.js"></script>
+  <script>
+    (() => {
+      const HEX_SIZE = 18;
+      const SQRT3 = Math.sqrt(3);
+      const MAP_ROTATION = 30;
+      const NOTES_KEY = 'hexfield-notes-v1';
+      const SPECIALS_KEY = 'hexfield-specials-v1';
+      const MAP_LAYOUT_KEY = 'hexfield-map-layout-v1';
+      const svg = document.getElementById('map');
+      const viewport = document.getElementById('viewport');
+      const boardImageLayer = document.getElementById('boardImageLayer');
+      const layer = document.getElementById('hexLayer');
+      const noteLayer = document.getElementById('noteLayer');
+      const workspace = document.getElementById('workspace');
+      const coordValue = document.getElementById('coordValue');
+      const distanceValue = document.getElementById('distanceValue');
+      const zoomValue = document.getElementById('zoomValue');
+      const toast = document.getElementById('toast');
+      const annotationInput = document.getElementById('annotationInput');
+      const annotationCoord = document.getElementById('annotationCoord');
+      const noteCount = document.getElementById('noteCount');
+      const debugToggle = document.getElementById('debugToggle');
+      const debugPanel = document.getElementById('debugPanel');
+      const debugGroups = document.getElementById('debugGroups');
+      const debugTotal = document.getElementById('debugTotal');
+      const randomizeMapBtn = document.getElementById('randomizeMapBtn');
+      const NS = 'http://www.w3.org/2000/svg';
+      const R2_BOARD_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
+      const PLANET_ORDER = ['red', 'blue', 'yellow', 'brown', 'orange', 'white', 'black'];
+      const PLANET_COLORS = { red: '#d94b45', blue: '#4388c9', yellow: '#e0bd34', brown: '#8b5b3d', orange: '#e88b31', white: '#f7f5e8', black: '#232622' };
+      const R2_POSITIONS = [[0,0],[5,-4],[-5,4],[-1,5],[4,1],[9,-3],[10,-8],[6,-9],[1,-5],[-4,-1]];
+      const DEFAULT_R2_ASSIGNMENTS = [
+        { number: '1', rotation: 0 }, { number: '2', rotation: 0 },
+        { number: '3', rotation: 0 }, { number: '4', rotation: 0 },
+        { number: '5', rotation: 0 }, { number: '6', rotation: 0 },
+        { number: '7', rotation: 0 }, { number: '8', rotation: 0 },
+        { number: '9', rotation: 0 }, { number: '10', rotation: 0 }
+      ];
+      const R2_IMAGE_WIDTH = HEX_SIZE * 8;
+      const R2_IMAGE_HEIGHT = HEX_SIZE * SQRT3 * 5;
+      const TRIANGLE_IMAGE_HEIGHT = HEX_SIZE * SQRT3 * 2;
+      const TRIANGLE_IMAGE_WIDTH = TRIANGLE_IMAGE_HEIGHT * 370 / 328;
+      const TRIANGLE_SLOTS = [
+        { cells: [[-2,-4],[-3,-4],[-2,-5]], rotation: 180 },
+        { cells: [[3,-8],[2,-8],[3,-9]], rotation: 180 },
+        { cells: [[12,-6],[11,-6],[12,-7]], rotation: 180 },
+        { cells: [[9,-10],[9,-11],[10,-11]], rotation: 0 },
+        { cells: [[7,1],[7,0],[8,0]], rotation: 0 },
+        { cells: [[2,5],[2,4],[3,4]], rotation: 0 },
+        { cells: [[-5,7],[-4,6],[-4,7]], rotation: 180 },
+        { cells: [[-7,3],[-7,2],[-6,2]], rotation: 0 }
+      ];
+      const DEFAULT_TRIANGLE_ASSIGNMENTS = ['11','12','13','14','15','16','17','18'].map(number => ({number, side: '实心', rotation: 0}));
+      const SPECIAL_CELLS = [[-3,1],[-2,3],[1,2],[-1,-2],[3,-1],[6,-2],[8,-5],[7,-7],[4,-6],[2,-3]];
+      const FLEET_IMAGES = ['舰队-VK.png', '舰队-拓邦.png', '舰队-永恒盖亚.png', '舰队-鹦鹉螺.png'];
+      const OTHER_SPECIAL_IMAGES = ['源行星.png', '小行星.png', '小行星.png', '小行星.png', '小行星.png', '空.png'];
+      const SPECIAL_IMAGE_WIDTH = HEX_SIZE * SQRT3;
+      const SPECIAL_IMAGE_HEIGHT = HEX_SIZE * 2;
+
+      let notes = loadNotes();
+      let specials = loadSpecials();
+      let mapLayout = loadMapLayout();
+      let R2_SECTORS = [];
+      let TRIANGLE_SECTORS = [];
+      let selectedCell = null;
+      let selectedKey = null;
+      let scale = 1;
+      let offsetX = 0;
+      let offsetY = 0;
+      let dragging = false;
+      let dragMoved = false;
+      let lastPoint = null;
+      let downPoint = null;
+      let downCell = null;
+      let toastTimer;
+      let noteEditSnapshot = null;
+      let debugMode = false;
+      let debugHighlightedCell = null;
+      const undoStack = [];
+      const cellsByKey = new Map();
+      applyMapLayout(mapLayout);
+
+      function key(q, r) { return `${q},${r}`; }
+      function distance(q, r) { return Math.max(Math.abs(q), Math.abs(r), Math.abs(-q-r)); }
+      function axialToPixel(q, r) {
+        return { x: HEX_SIZE * 1.5 * q, y: HEX_SIZE * SQRT3 * (r + q / 2) };
+      }
+      function points(cx, cy) {
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 180 * (60 * i);
+          pts.push(`${cx + HEX_SIZE * Math.cos(a)},${cy + HEX_SIZE * Math.sin(a)}`);
+        }
+        return pts.join(' ');
+      }
+
+      function radiusKeys(cq, cr, radius) {
+        const keys = [];
+        for (let dq = -radius; dq <= radius; dq++) {
+          const drMin = Math.max(-radius, -dq - radius);
+          const drMax = Math.min(radius, -dq + radius);
+          for (let dr = drMin; dr <= drMax; dr++) keys.push(key(cq + dq, cr + dr));
+        }
+        return keys;
+      }
+
+      function rotateAxial(q, r, steps) {
+        let rotatedQ = q, rotatedR = r;
+        const turns = ((steps % 6) + 6) % 6;
+        for (let i = 0; i < turns; i++) {
+          [rotatedQ, rotatedR] = [-rotatedR, rotatedQ + rotatedR];
+        }
+        return [rotatedQ, rotatedR];
+      }
+
+      function getPlacedR2Cells(sector) {
+        const board = R2_BOARD_LIBRARY.boards[sector.number];
+        return radiusKeys(0, 0, 2).map(localKey => {
+          const [localQ, localR] = localKey.split(',').map(Number);
+          const [rotatedQ, rotatedR] = rotateAxial(localQ, localR, sector.rotation || 0);
+          const worldQ = sector.q + rotatedQ;
+          const worldR = sector.r + rotatedR;
+          return {
+            localQ,
+            localR,
+            worldQ,
+            worldR,
+            worldKey: key(worldQ, worldR),
+            planet: board.cellAnnotations[localKey] || null
+          };
+        });
+      }
+
+      function createDefaultMapLayout() {
+        return {
+          version: 2,
+          generatedAt: null,
+          r2: DEFAULT_R2_ASSIGNMENTS.map(item => ({...item})),
+          triangles: DEFAULT_TRIANGLE_ASSIGNMENTS.map(item => ({...item}))
+        };
+      }
+
+      function cloneMapLayout(layout) {
+        return {
+          version: 2,
+          generatedAt: layout.generatedAt || null,
+          r2: layout.r2.map(item => ({number: String(item.number), rotation: Number(item.rotation)})),
+          triangles: layout.triangles.map(item => ({number: String(item.number), side: item.side, rotation: Number(item.rotation || 0)}))
+        };
+      }
+
+      function isValidMapLayout(layout) {
+        if (!layout || !Array.isArray(layout.r2) || layout.r2.length !== 10 || !Array.isArray(layout.triangles) || layout.triangles.length !== 8) return false;
+        const r2Numbers = layout.r2.map(item => String(item.number));
+        const triangleNumbers = layout.triangles.map(item => String(item.number));
+        if (new Set(r2Numbers).size !== 10 || r2Numbers.some(number => !R2_BOARD_LIBRARY.boards[number])) return false;
+        if (!layout.r2.every(item => Number.isInteger(Number(item.rotation)) && Number(item.rotation) >= 0 && Number(item.rotation) <= 5)) return false;
+        if (!r2Numbers.slice(0, 2).every(number => ['1','2','3','4'].includes(number))) return false;
+        if (new Set(triangleNumbers).size !== 8 || triangleNumbers.some(number => Number(number) < 11 || Number(number) > 18)) return false;
+        return layout.triangles.every(item => (item.side === '实心' || item.side === '空心') && (item.rotation == null || (Number.isInteger(Number(item.rotation)) && Number(item.rotation) >= 0 && Number(item.rotation) <= 2)));
+      }
+
+      function loadMapLayout() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(MAP_LAYOUT_KEY) || 'null');
+          return isValidMapLayout(saved) ? cloneMapLayout(saved) : createDefaultMapLayout();
+        } catch { return createDefaultMapLayout(); }
+      }
+
+      function saveMapLayout() {
+        localStorage.setItem(MAP_LAYOUT_KEY, JSON.stringify(mapLayout));
+      }
+
+      function applyMapLayout(layout) {
+        mapLayout = cloneMapLayout(layout);
+        R2_SECTORS = mapLayout.r2.map((item, index) => ({...item, q: R2_POSITIONS[index][0], r: R2_POSITIONS[index][1]}));
+        TRIANGLE_SECTORS = mapLayout.triangles.map((item, index) => ({...item, cells: TRIANGLE_SLOTS[index].cells, randomRotation: item.rotation, rotation: TRIANGLE_SLOTS[index].rotation + item.rotation * 120}));
+      }
+
+      function findPlanetConflicts(sectors) {
+        const planetsByCell = new Map();
+        sectors.forEach(sector => getPlacedR2Cells(sector).forEach(cell => {
+          if (cell.planet) planetsByCell.set(cell.worldKey, {...cell, boardNumber: sector.number});
+        }));
+        const directions = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+        const conflicts = [];
+        planetsByCell.forEach(planet => {
+          directions.forEach(([dq, dr]) => {
+            const neighbor = planetsByCell.get(key(planet.worldQ + dq, planet.worldR + dr));
+            if (!neighbor || neighbor.planet !== planet.planet || planet.worldKey >= neighbor.worldKey) return;
+            conflicts.push({planet: planet.planet, first: planet, second: neighbor});
+          });
+        });
+        return conflicts;
+      }
+
+      function rerollConflictingR2Rotations(sectors, maxPasses = 180) {
+        for (let pass = 0; pass < maxPasses; pass++) {
+          const conflicts = findPlanetConflicts(sectors);
+          if (!conflicts.length) return true;
+          const boardNumbers = new Set(conflicts.flatMap(conflict => [conflict.first.boardNumber, conflict.second.boardNumber]));
+          sectors.forEach(sector => {
+            if (!boardNumbers.has(sector.number)) return;
+            const choices = [0,1,2,3,4,5].filter(rotation => rotation !== sector.rotation);
+            sector.rotation = choices[Math.floor(Math.random() * choices.length)];
+          });
+        }
+        return false;
+      }
+
+      function solveR2Rotations(sectors) {
+        const assignedPlanets = new Map();
+        const neighborCount = index => R2_POSITIONS.reduce((count, position, otherIndex) => {
+          if (index === otherIndex) return count;
+          return count + (distance(R2_POSITIONS[index][0] - position[0], R2_POSITIONS[index][1] - position[1]) === 5 ? 1 : 0);
+        }, 0);
+        const order = sectors.map((_, index) => index).sort((a, b) => neighborCount(b) - neighborCount(a));
+        const directions = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+
+        function canPlace(planets) {
+          return planets.every(planet => directions.every(([dq, dr]) => assignedPlanets.get(key(planet.worldQ + dq, planet.worldR + dr)) !== planet.planet));
+        }
+
+        function place(position) {
+          if (position === order.length) return true;
+          const sector = sectors[order[position]];
+          const rotations = shuffle([0,1,2,3,4,5]);
+          for (const rotation of rotations) {
+            sector.rotation = rotation;
+            const planets = getPlacedR2Cells(sector).filter(cell => cell.planet);
+            if (!canPlace(planets)) continue;
+            planets.forEach(planet => assignedPlanets.set(planet.worldKey, planet.planet));
+            if (place(position + 1)) return true;
+            planets.forEach(planet => assignedPlanets.delete(planet.worldKey));
+          }
+          return false;
+        }
+
+        return place(0);
+      }
+
+      function createRandomMapLayout() {
+        for (let attempt = 0; attempt < 120; attempt++) {
+          const centralPool = shuffle(['1','2','3','4']).slice(0, 2);
+          const remainingBoards = shuffle(['1','2','3','4','5','6','7','8','9','10'].filter(number => !centralPool.includes(number)));
+          const boardNumbers = [...shuffle(centralPool), ...remainingBoards];
+          const sectors = boardNumbers.map((number, index) => ({number, q: R2_POSITIONS[index][0], r: R2_POSITIONS[index][1], rotation: Math.floor(Math.random() * 6)}));
+          if (!rerollConflictingR2Rotations(sectors) && !solveR2Rotations(sectors)) continue;
+          if (findPlanetConflicts(sectors).length) continue;
+          return {
+            version: 2,
+            generatedAt: new Date().toISOString(),
+            r2: sectors.map(({number, rotation}) => ({number, rotation})),
+            triangles: shuffle(['11','12','13','14','15','16','17','18']).map(number => ({number, side: Math.random() < .5 ? '实心' : '空心', rotation: Math.floor(Math.random() * 3)}))
+          };
+        }
+        throw new Error('R2 rotation solver failed');
+      }
+
+      function getUsedCellCoordinates() {
+        const used = new Map();
+        R2_SECTORS.forEach(sector => getPlacedR2Cells(sector).forEach(cell => used.set(cell.worldKey, [cell.worldQ, cell.worldR])));
+        TRIANGLE_SECTORS.forEach(sector => sector.cells.forEach(([q, r]) => used.set(key(q, r), [q, r])));
+        SPECIAL_CELLS.forEach(([q, r]) => used.set(key(q, r), [q, r]));
+        return [...used.values()].sort(([q1, r1], [q2, r2]) => q1 - q2 || r1 - r2);
+      }
+
+      function getUsedMapBounds() {
+        const angle = MAP_ROTATION * Math.PI / 180;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        getUsedCellCoordinates().forEach(([q, r]) => {
+          const center = axialToPixel(q, r);
+          for (let i = 0; i < 6; i++) {
+            const vertexAngle = Math.PI / 180 * (60 * i);
+            const x = center.x + HEX_SIZE * Math.cos(vertexAngle);
+            const y = center.y + HEX_SIZE * Math.sin(vertexAngle);
+            const rotatedX = x * cos - y * sin;
+            const rotatedY = x * sin + y * cos;
+            minX = Math.min(minX, rotatedX);
+            minY = Math.min(minY, rotatedY);
+            maxX = Math.max(maxX, rotatedX);
+            maxY = Math.max(maxY, rotatedY);
+          }
+        });
+        return {minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2};
+      }
+
+      window.hexfieldGetR2CellInfo = (boardNumber, centerQ, centerR, rotation = 0) => {
+        const number = String(boardNumber);
+        if (!R2_BOARD_LIBRARY.boards[number]) return [];
+        return getPlacedR2Cells({number, q: centerQ, r: centerR, rotation});
+      };
+
+      function appendBoardImage(fragment, {number, imageName, x, y, width, height, rotation = 0, rotationStep = null, label}) {
+        const image = document.createElementNS(NS, 'image');
+        image.setAttribute('href', `../doc/gaia/map/${imageName}`);
+        image.setAttribute('x', x - width / 2);
+        image.setAttribute('y', y - height / 2);
+        image.setAttribute('width', width);
+        image.setAttribute('height', height);
+        image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        image.setAttribute('class', 'board-image');
+        image.dataset.number = number;
+        image.dataset.imageName = imageName;
+        image.dataset.rotation = rotation;
+        if (rotationStep != null) image.dataset.rotationStep = rotationStep;
+        image.setAttribute('aria-label', label);
+        if (rotation) image.setAttribute('transform', `rotate(${rotation} ${x} ${y})`);
+        fragment.appendChild(image);
+      }
+
+      function renderBoardImages() {
+        const fragment = document.createDocumentFragment();
+        layer.querySelectorAll('.hex').forEach(cell => {
+          delete cell.dataset.boardNumber;
+          delete cell.dataset.boardLocalQ;
+          delete cell.dataset.boardLocalR;
+          delete cell.dataset.planet;
+          const cellKey = key(cell.dataset.q, cell.dataset.r);
+          cell.querySelector('title').textContent = notes[cellKey] || `坐标 Q ${cell.dataset.q} / R ${cell.dataset.r}`;
+        });
+        R2_SECTORS.forEach(sector => {
+          const board = R2_BOARD_LIBRARY.boards[sector.number];
+          const placedCells = getPlacedR2Cells(sector);
+          placedCells.forEach(placed => {
+            const cell = cellsByKey.get(placed.worldKey);
+            if (!cell) return;
+            cell.dataset.boardNumber = sector.number;
+            cell.dataset.boardLocalQ = placed.localQ;
+            cell.dataset.boardLocalR = placed.localR;
+            if (placed.planet) cell.dataset.planet = placed.planet;
+            const planetName = placed.planet ? `${R2_BOARD_LIBRARY.planetTypes[placed.planet]}色行星` : '空域';
+            const userNote = notes[placed.worldKey] ? `${notes[placed.worldKey]} · ` : '';
+            cell.querySelector('title').textContent = `${userNote}板块 ${sector.number.padStart(2, '0')} · 局部 Q ${placed.localQ} / R ${placed.localR} · ${planetName}`;
+          });
+          const {x, y} = axialToPixel(sector.q, sector.r);
+          appendBoardImage(fragment, {
+            number: sector.number,
+            imageName: board.image,
+            x, y,
+            width: R2_IMAGE_WIDTH,
+            height: R2_IMAGE_HEIGHT,
+            rotation: (sector.rotation || 0) * 60,
+            rotationStep: sector.rotation || 0,
+            label: `${sector.number} 号 R2 游戏板块`
+          });
+        });
+        TRIANGLE_SECTORS.forEach(sector => {
+          const centers = sector.cells.map(([q, r]) => axialToPixel(q, r));
+          const x = centers.reduce((sum, point) => sum + point.x, 0) / centers.length;
+          const y = centers.reduce((sum, point) => sum + point.y, 0) / centers.length;
+          appendBoardImage(fragment, {
+            number: sector.number,
+            imageName: `${sector.number}-${sector.side}.png`,
+            x, y,
+            width: TRIANGLE_IMAGE_WIDTH,
+            height: TRIANGLE_IMAGE_HEIGHT,
+            rotation: sector.rotation,
+            rotationStep: sector.randomRotation,
+            label: `${sector.number} 号三角游戏板块（${sector.side} · 随机旋转 ${sector.randomRotation * 120}°）`
+          });
+        });
+        SPECIAL_CELLS.forEach(([q, r]) => {
+          const cellKey = key(q, r);
+          const imageName = specials[cellKey];
+          if (!imageName) return;
+          const {x, y} = axialToPixel(q, r);
+          appendBoardImage(fragment, {
+            number: imageName.replace('.png', ''),
+            imageName,
+            x, y,
+            width: SPECIAL_IMAGE_WIDTH,
+            height: SPECIAL_IMAGE_HEIGHT,
+            rotation: 90,
+            label: `特殊板块：${imageName.replace('.png', '')}`
+          });
+        });
+        boardImageLayer.replaceChildren(fragment);
+      }
+
+      function loadNotes() {
+        try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '{}'); }
+        catch { return {}; }
+      }
+      function loadSpecials() {
+        try { return JSON.parse(localStorage.getItem(SPECIALS_KEY) || '{}'); }
+        catch { return {}; }
+      }
+      function saveNotes() {
+        localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+        noteCount.textContent = Object.keys(notes).length.toLocaleString('zh-CN');
+      }
+      function saveSpecials() {
+        localStorage.setItem(SPECIALS_KEY, JSON.stringify(specials));
+      }
+
+      function shuffle(items) {
+        const result = [...items];
+        for (let i = result.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+      }
+
+      function isValidSpecialLayout(layout) {
+        const cellKeys = SPECIAL_CELLS.map(([q, r]) => key(q, r));
+        if (!layout || Object.keys(layout).length !== cellKeys.length || cellKeys.some(cellKey => !layout[cellKey])) return false;
+        const values = Object.values(layout);
+        if (FLEET_IMAGES.some(image => values.filter(value => value === image).length !== 1)) return false;
+        if (values.filter(value => value === '源行星.png').length !== 1 || values.filter(value => value === '小行星.png').length !== 4 || values.filter(value => value === '空.png').length !== 1) return false;
+        const fleets = cellKeys.filter(cellKey => FLEET_IMAGES.includes(layout[cellKey])).map(cellKey => cellKey.split(',').map(Number));
+        return fleets.every((cell, index) => fleets.slice(index + 1).every(other => distance(cell[0] - other[0], cell[1] - other[1]) > 3));
+      }
+
+      function createRandomSpecialLayout() {
+        const combinations = [];
+        for (let a = 0; a < SPECIAL_CELLS.length; a++) {
+          for (let b = a + 1; b < SPECIAL_CELLS.length; b++) {
+            for (let c = b + 1; c < SPECIAL_CELLS.length; c++) {
+              for (let d = c + 1; d < SPECIAL_CELLS.length; d++) {
+                const candidates = [a, b, c, d];
+                const valid = candidates.every((cellIndex, index) => candidates.slice(index + 1).every(otherIndex => {
+                  const [q1, r1] = SPECIAL_CELLS[cellIndex];
+                  const [q2, r2] = SPECIAL_CELLS[otherIndex];
+                  return distance(q1 - q2, r1 - r2) > 3;
+                }));
+                if (valid) combinations.push(candidates);
+              }
+            }
+          }
+        }
+        const fleetIndexes = combinations[Math.floor(Math.random() * combinations.length)];
+        const fleetIndexSet = new Set(fleetIndexes);
+        const shuffledFleets = shuffle(FLEET_IMAGES);
+        const shuffledOthers = shuffle(OTHER_SPECIAL_IMAGES);
+        const layout = {};
+        let fleetCursor = 0, otherCursor = 0;
+        SPECIAL_CELLS.forEach(([q, r], index) => {
+          layout[key(q, r)] = fleetIndexSet.has(index) ? shuffledFleets[fleetCursor++] : shuffledOthers[otherCursor++];
+        });
+        return layout;
+      }
+
+      if (!isValidSpecialLayout(specials)) {
+        specials = createRandomSpecialLayout();
+        saveSpecials();
+      }
+
+      function captureState() {
+        return {
+          notes: {...notes},
+          specials: {...specials},
+          mapLayout: cloneMapLayout(mapLayout)
+        };
+      }
+
+      function pushHistory(snapshot = captureState()) {
+        const previous = undoStack[undoStack.length - 1];
+        if (previous && JSON.stringify(previous) === JSON.stringify(snapshot)) return;
+        undoStack.push(snapshot);
+        if (undoStack.length > 100) undoStack.shift();
+      }
+
+      function renderData() {
+        layer.querySelectorAll('.hex').forEach(cell => {
+          const cellKey = key(cell.dataset.q, cell.dataset.r);
+          cell.querySelector('title').textContent = notes[cellKey] || `坐标 Q ${cell.dataset.q} / R ${cell.dataset.r}`;
+        });
+        noteLayer.querySelectorAll('.note-dot').forEach(dot => dot.classList.toggle('has-value', Boolean(notes[dot.dataset.key])));
+        renderBoardImages();
+        saveNotes();
+        saveSpecials();
+        saveMapLayout();
+        if (debugMode) {
+          clearDebugHighlight();
+          renderDebugger();
+        }
+        if (selectedCell) selectCell(selectedCell);
+      }
+
+      function undo() {
+        const previous = undoStack.pop();
+        if (!previous) return showToast('没有可撤回的操作');
+        notes = {...previous.notes};
+        if (previous.specials) specials = {...previous.specials};
+        if (previous.mapLayout && isValidMapLayout(previous.mapLayout)) applyMapLayout(previous.mapLayout);
+        noteEditSnapshot = null;
+        renderData();
+        showToast(`已撤回 · 还可撤回 ${undoStack.length} 步`);
+      }
+
+      function buildGrid() {
+        const fragment = document.createDocumentFragment();
+        const noteFragment = document.createDocumentFragment();
+        let count = 0;
+        getUsedCellCoordinates().forEach(([q, r]) => {
+            const {x, y} = axialToPixel(q, r);
+            const poly = document.createElementNS(NS, 'polygon');
+            const cellKey = key(q, r);
+            poly.setAttribute('points', points(x, y));
+            poly.setAttribute('class', 'hex grid-line');
+            poly.dataset.q = q;
+            poly.dataset.r = r;
+            cellsByKey.set(cellKey, poly);
+            const title = document.createElementNS(NS, 'title');
+            title.textContent = notes[cellKey] || `坐标 Q ${q} / R ${r}`;
+            poly.appendChild(title);
+            fragment.appendChild(poly);
+
+            const dot = document.createElementNS(NS, 'circle');
+            dot.setAttribute('cx', x + 8);
+            dot.setAttribute('cy', y - 8);
+            dot.setAttribute('r', 2.6);
+            dot.setAttribute('class', `note-dot${notes[cellKey] ? ' has-value' : ''}`);
+            dot.dataset.key = cellKey;
+            noteFragment.appendChild(dot);
+            count++;
+        });
+        layer.appendChild(fragment);
+        noteLayer.appendChild(noteFragment);
+        renderBoardImages();
+        document.getElementById('totalCount').textContent = count.toLocaleString('zh-CN');
+        saveNotes();
+      }
+
+      function updateTransform() {
+        viewport.setAttribute('transform', `translate(${offsetX} ${offsetY}) scale(${scale}) rotate(${MAP_ROTATION})`);
+        zoomValue.textContent = `${Math.round(scale * 100)}%`;
+      }
+      function resetView() {
+        const rect = workspace.getBoundingClientRect();
+        const bounds = getUsedMapBounds();
+        const fitX = (rect.width - 74) / bounds.width;
+        const fitY = (rect.height - 74) / bounds.height;
+        scale = Math.min(2.2, fitX, fitY);
+        offsetX = rect.width / 2 - bounds.centerX * scale;
+        offsetY = rect.height / 2 - bounds.centerY * scale;
+        updateTransform();
+      }
+      function zoomAt(factor, clientX, clientY) {
+        const rect = svg.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const old = scale;
+        scale = Math.min(4.2, Math.max(.32, scale * factor));
+        offsetX = x - (x - offsetX) * (scale / old);
+        offsetY = y - (y - offsetY) * (scale / old);
+        updateTransform();
+      }
+
+      function focusCell(q, r) {
+        const point = axialToPixel(q, r);
+        const angle = MAP_ROTATION * Math.PI / 180;
+        const rotatedX = point.x * Math.cos(angle) - point.y * Math.sin(angle);
+        const rotatedY = point.x * Math.sin(angle) + point.y * Math.cos(angle);
+        offsetX = workspace.clientWidth / 2 - rotatedX * scale;
+        offsetY = workspace.clientHeight / 2 - rotatedY * scale;
+        updateTransform();
+      }
+
+      function clearDebugHighlight() {
+        if (debugHighlightedCell) debugHighlightedCell.classList.remove('debug-highlight');
+        debugHighlightedCell = null;
+        debugGroups.querySelector('.debug-coordinate.active')?.classList.remove('active');
+      }
+
+      function renderDebugger() {
+        const entries = R2_SECTORS.flatMap(sector => getPlacedR2Cells(sector)
+          .filter(cell => cell.planet)
+          .map(cell => ({...cell, boardNumber: sector.number})))
+          .sort((a, b) => Number(a.boardNumber) - Number(b.boardNumber) || a.worldQ - b.worldQ || a.worldR - b.worldR);
+        const fragment = document.createDocumentFragment();
+        PLANET_ORDER.forEach(planet => {
+          const planetEntries = entries.filter(entry => entry.planet === planet);
+          const group = document.createElement('section');
+          group.className = 'debug-group';
+          const head = document.createElement('div');
+          head.className = 'debug-group-head';
+          const dot = document.createElement('span');
+          dot.className = 'planet-dot';
+          dot.style.background = PLANET_COLORS[planet];
+          head.append(dot, document.createTextNode(`${R2_BOARD_LIBRARY.planetTypes[planet]}色行星`));
+          const count = document.createElement('b');
+          count.textContent = planetEntries.length;
+          head.appendChild(count);
+          group.appendChild(head);
+          planetEntries.forEach(entry => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'debug-coordinate';
+            button.dataset.worldKey = entry.worldKey;
+            button.dataset.planet = entry.planet;
+            button.title = `板块 ${entry.boardNumber.padStart(2, '0')} · 局部 Q ${entry.localQ} / R ${entry.localR}`;
+            const board = document.createElement('span');
+            board.className = 'debug-board';
+            board.textContent = `板块 ${entry.boardNumber.padStart(2, '0')}`;
+            const coord = document.createElement('span');
+            coord.className = 'debug-coord';
+            coord.textContent = `Q ${entry.worldQ} / R ${entry.worldR}`;
+            button.append(board, coord);
+            group.appendChild(button);
+          });
+          fragment.appendChild(group);
+        });
+        debugGroups.replaceChildren(fragment);
+        debugTotal.textContent = `${entries.length} 个行星`;
+      }
+
+      function setDebugMode(enabled) {
+        debugMode = enabled;
+        debugToggle.classList.toggle('active', enabled);
+        debugToggle.setAttribute('aria-expanded', String(enabled));
+        debugPanel.hidden = !enabled;
+        if (enabled) {
+          renderDebugger();
+          showToast('Debugger 已开启 · 点击坐标可定位');
+        } else {
+          clearDebugHighlight();
+          showToast('Debugger 已关闭');
+        }
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('show');
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+      }
+
+      layer.addEventListener('pointerover', e => {
+        const cell = e.target.closest('.hex');
+        if (!cell) return;
+        const q = Number(cell.dataset.q), r = Number(cell.dataset.r);
+        coordValue.textContent = `${q} / ${r}`;
+        distanceValue.textContent = distance(q, r);
+        cell.classList.add('preview');
+      });
+      layer.addEventListener('pointerout', e => {
+        const cell = e.target.closest('.hex');
+        if (cell) cell.classList.remove('preview');
+      });
+      function selectCell(cell) {
+        if (!cell) return;
+        if (selectedCell) selectedCell.classList.remove('selected');
+        selectedCell = cell;
+        selectedCell.classList.add('selected');
+        selectedKey = key(cell.dataset.q, cell.dataset.r);
+        const boardInfo = cell.dataset.boardNumber
+          ? ` · 板块 ${cell.dataset.boardNumber.padStart(2, '0')} · 局部 ${cell.dataset.boardLocalQ}/${cell.dataset.boardLocalR}${cell.dataset.planet ? ` · ${R2_BOARD_LIBRARY.planetTypes[cell.dataset.planet]}色行星` : ' · 空域'}`
+          : '';
+        annotationCoord.textContent = `Q ${cell.dataset.q} · R ${cell.dataset.r}${boardInfo}`;
+        annotationInput.value = notes[selectedKey] || '';
+      }
+
+      function updateNote() {
+        if (!selectedKey || !selectedCell) return;
+        const value = annotationInput.value.trim();
+        if (value) notes[selectedKey] = value;
+        else delete notes[selectedKey];
+        selectedCell.querySelector('title').textContent = value || `坐标 Q ${selectedCell.dataset.q} / R ${selectedCell.dataset.r}`;
+        const dot = noteLayer.querySelector(`[data-key="${CSS.escape(selectedKey)}"]`);
+        if (dot) dot.classList.toggle('has-value', Boolean(value));
+        saveNotes();
+      }
+
+      workspace.addEventListener('wheel', e => {
+        e.preventDefault();
+        zoomAt(e.deltaY < 0 ? 1.12 : .89, e.clientX, e.clientY);
+      }, { passive: false });
+      workspace.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        dragging = true;
+        dragMoved = false;
+        lastPoint = {x: e.clientX, y: e.clientY};
+        downPoint = {x: e.clientX, y: e.clientY};
+        downCell = e.target.closest('.hex');
+        workspace.classList.add('dragging');
+        workspace.setPointerCapture(e.pointerId);
+      });
+      workspace.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - lastPoint.x, dy = e.clientY - lastPoint.y;
+        if (Math.hypot(e.clientX - downPoint.x, e.clientY - downPoint.y) > 6) dragMoved = true;
+        if (dragMoved) {
+          offsetX += dx;
+          offsetY += dy;
+          updateTransform();
+        }
+        lastPoint = {x: e.clientX, y: e.clientY};
+      });
+      workspace.addEventListener('pointerup', e => {
+        dragging = false;
+        workspace.classList.remove('dragging');
+        if (workspace.hasPointerCapture(e.pointerId)) workspace.releasePointerCapture(e.pointerId);
+        if (!dragMoved && downCell) {
+          if (debugMode) clearDebugHighlight();
+          selectCell(downCell);
+        }
+        downCell = null;
+        downPoint = null;
+        dragMoved = false;
+      });
+
+      annotationInput.addEventListener('focus', () => { noteEditSnapshot = captureState(); });
+      annotationInput.addEventListener('input', updateNote);
+      annotationInput.addEventListener('blur', () => {
+        if (noteEditSnapshot && JSON.stringify(noteEditSnapshot) !== JSON.stringify(captureState())) pushHistory(noteEditSnapshot);
+        noteEditSnapshot = null;
+      });
+      document.getElementById('clearNoteBtn').addEventListener('click', () => {
+        if (!selectedKey || !notes[selectedKey]) return showToast('当前格子没有标注');
+        pushHistory();
+        annotationInput.value = '';
+        updateNote();
+        annotationInput.focus();
+        showToast('当前格子的标注已清除');
+      });
+      document.getElementById('zoomIn').addEventListener('click', () => zoomAt(1.2, workspace.clientWidth/2, workspace.clientHeight/2));
+      document.getElementById('zoomOut').addEventListener('click', () => zoomAt(.83, workspace.clientWidth/2, workspace.clientHeight/2));
+      document.getElementById('resetView').addEventListener('click', resetView);
+      debugToggle.addEventListener('click', () => setDebugMode(!debugMode));
+      debugGroups.addEventListener('click', e => {
+        const button = e.target.closest('.debug-coordinate');
+        if (!button || !debugMode) return;
+        const cell = cellsByKey.get(button.dataset.worldKey);
+        if (!cell) return showToast('找不到该坐标的地图格');
+        clearDebugHighlight();
+        debugHighlightedCell = cell;
+        debugHighlightedCell.classList.add('debug-highlight');
+        button.classList.add('active');
+        selectCell(cell);
+        focusCell(Number(cell.dataset.q), Number(cell.dataset.r));
+        showToast(`${R2_BOARD_LIBRARY.planetTypes[button.dataset.planet]}色行星 · 已定位 Q ${cell.dataset.q} / R ${cell.dataset.r}`);
+      });
+      randomizeMapBtn.addEventListener('click', () => {
+        pushHistory();
+        randomizeMapBtn.disabled = true;
+        try {
+          applyMapLayout(createRandomMapLayout());
+          specials = createRandomSpecialLayout();
+          renderData();
+          showToast('地图已重新生成 · 行星相邻冲突 0');
+        } catch {
+          undoStack.pop();
+          showToast('生成失败，请再试一次');
+        } finally {
+          randomizeMapBtn.disabled = false;
+        }
+      });
+      window.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+          if (document.activeElement === annotationInput) return;
+          e.preventDefault();
+          undo();
+          return;
+        }
+        if (e.code === 'Space' && !e.repeat && document.activeElement !== annotationInput) {
+          e.preventDefault();
+          resetView();
+        }
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', () => {
+        const payload = { format: 'hexfield-map', version: 9, orientation: 'flat-top-map', cellCount: cellsByKey.size, exportedAt: new Date().toISOString(), notes, specials, mapLayout: cloneMapLayout(mapLayout) };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hexfield-map-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('地图数据已导出');
+      });
+      const importFile = document.getElementById('importFile');
+      document.getElementById('importBtn').addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', async () => {
+        const file = importFile.files[0];
+        if (!file) return;
+        try {
+          const data = JSON.parse(await file.text());
+          if (data.format !== 'hexfield-map') throw new Error();
+          pushHistory();
+          notes = data.notes && typeof data.notes === 'object' ? data.notes : {};
+          if (data.mapLayout && isValidMapLayout(data.mapLayout)) applyMapLayout(data.mapLayout);
+          if (data.specials && isValidSpecialLayout(data.specials)) {
+            specials = data.specials;
+            saveSpecials();
+          }
+          renderData();
+          showToast(`已导入 ${Object.keys(notes).length} 个文字标注及地图布局`);
+        } catch { showToast('无法读取：请选择有效的 HEXFIELD 地图文件'); }
+        importFile.value = '';
+      });
+
+      buildGrid();
+      selectCell(cellsByKey.get('0,0'));
+      requestAnimationFrame(resetView);
+      window.addEventListener('resize', resetView);
+    })();
+  </script>
+</body>
+</html>
