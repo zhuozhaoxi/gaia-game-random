@@ -17,3 +17,5 @@
 - 4 个舰队特殊板块两两距离必须大于 3。
 
 独立的地图 Debugger 保留在原开发工具目录，不随正式页面发布。
+
+随机分布与公平性压测结果见 [`RANDOMNESS-AUDIT.md`](RANDOMNESS-AUDIT.md)。可复现审计脚本位于 `scripts/audit-map-randomness.js`。
