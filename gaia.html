@@ -510,6 +510,7 @@
     </div>
 </div>
 
+<script src="js/map-share-assets.js"></script>
 <script src="js/r2-boards.js"></script>
 <script src="js/gaia-map-generator.js"></script>
 <script>
@@ -877,36 +878,117 @@
         });
     });
 
+    function getMapCaptureSnapshot() {
+        const svg = document.getElementById('generatedMap');
+        if (!svg || !svg.querySelector('image') || svg.closest('.hidden')) return null;
+
+        const bounds = svg.getBoundingClientRect();
+        return {
+            width: bounds.width,
+            height: bounds.height,
+            images: Array.from(svg.querySelectorAll('image')).map(node => {
+                const matrix = node.getCTM();
+                const x = Number(node.getAttribute('x'));
+                const y = Number(node.getAttribute('y'));
+                return {
+                    src: window.GAIA_MAP_SHARE_ASSETS?.[node.getAttribute('href').split('/').pop()] || node.getAttribute('href'),
+                    width: Number(node.getAttribute('width')),
+                    height: Number(node.getAttribute('height')),
+                    matrix: {
+                        a: matrix.a,
+                        b: matrix.b,
+                        c: matrix.c,
+                        d: matrix.d,
+                        e: matrix.e + matrix.a * x + matrix.c * y,
+                        f: matrix.f + matrix.b * x + matrix.d * y
+                    }
+                };
+            })
+        };
+    }
+
+    async function captureMapCanvas(snapshot, scale) {
+        if (!snapshot) return null;
+        const stage = document.createElement('div');
+        stage.className = 'map-canvas';
+        stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${snapshot.width}px;height:${snapshot.height}px;`;
+        const replacement = document.createElement('div');
+        replacement.id = 'generatedMapCapture';
+        replacement.setAttribute('role', 'img');
+        replacement.setAttribute('aria-label', '随机生成的盖亚游戏地图');
+        replacement.style.cssText = `position:relative;display:block;width:${snapshot.width}px;height:${snapshot.height}px;min-height:0;overflow:hidden;`;
+
+        const loading = [];
+        snapshot.images.forEach(item => {
+            const image = document.createElement('img');
+            image.src = item.src;
+            image.alt = '';
+            image.style.cssText = `position:absolute;left:0;top:0;width:${item.width}px;height:${item.height}px;max-width:none;transform-origin:0 0;transform:matrix(${item.matrix.a},${item.matrix.b},${item.matrix.c},${item.matrix.d},${item.matrix.e},${item.matrix.f});`;
+            replacement.appendChild(image);
+            if (!image.complete) {
+                loading.push(new Promise(resolve => {
+                    image.addEventListener('load', resolve, {once: true});
+                    image.addEventListener('error', resolve, {once: true});
+                }));
+            }
+        });
+
+        stage.appendChild(replacement);
+        document.body.appendChild(stage);
+        try {
+            await Promise.all(loading);
+            return await html2canvas(stage, {
+                scale,
+                useCORS: true,
+                backgroundColor: null
+            });
+        } finally {
+            stage.remove();
+        }
+    }
+
     // 生成分享图片
-    function generateShareImage() {
+    async function generateShareImage() {
         // 显示加载提示
         const modal = document.getElementById('imageModal');
         const imageElement = document.getElementById('generatedImage');
+        const mapCaptureSnapshot = getMapCaptureSnapshot();
         imageElement.src = '';
         imageElement.alt = '正在生成图片...';
         modal.style.display = 'block';
 
-        // 使用html2canvas生成图片
-        import('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(() => {
+        try {
+            // 使用html2canvas生成图片
+            await import('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
             const contentElement = document.querySelector('.content');
-
-            html2canvas(contentElement, {
-                scale: 2, // 提高图片质量
+            const contentBounds = contentElement.getBoundingClientRect();
+            const mapBounds = document.querySelector('.map-canvas').getBoundingClientRect();
+            const scale = 2;
+            const capturedMap = await captureMapCanvas(mapCaptureSnapshot, scale);
+            const canvas = await html2canvas(contentElement, {
+                scale, // 提高图片质量
                 useCORS: true,
                 backgroundColor: '#fff'
-            }).then(canvas => {
-                // 将canvas转换为图片
-                const imageData = canvas.toDataURL('image/png');
-                imageElement.src = imageData;
-                imageElement.alt = '盖亚随机结果';
-            }).catch(error => {
-                console.error('生成图片失败:', error);
-                imageElement.alt = '生成图片失败';
             });
-        }).catch(error => {
-            console.error('加载html2canvas失败:', error);
-            imageElement.alt = '加载图片生成工具失败';
-        });
+            if (capturedMap) {
+                const context = canvas.getContext('2d');
+                context.save();
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                context.drawImage(
+                    capturedMap,
+                    (mapBounds.left - contentBounds.left) * scale,
+                    (mapBounds.top - contentBounds.top) * scale
+                );
+                context.restore();
+            }
+            // 将canvas转换为图片
+            const imageData = canvas.toDataURL('image/png');
+            imageElement.src = imageData;
+            imageElement.alt = '盖亚随机结果';
+        } catch (error) {
+            console.error('生成图片失败:', error);
+            imageElement.alt = '生成图片失败';
+        }
     }
 
     // 下载图片

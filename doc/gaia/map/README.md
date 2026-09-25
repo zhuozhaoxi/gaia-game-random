@@ -6,6 +6,7 @@
 
 - `js/r2-boards.js`：R2 板块的局部行星坐标与种类。
 - `js/gaia-map-generator.js`：地图布局、旋转、合规检测和 SVG 渲染。
+- `js/map-share-assets.js`：分享图片专用的轻量内嵌地图素材，避免 SVG 图片在截图时丢失。
 - `gaia.html`：配置选项与正式页面集成。
 
 当前规则：
@@ -19,3 +20,5 @@
 独立的地图 Debugger 保留在原开发工具目录，不随正式页面发布。
 
 随机分布与公平性压测结果见 [`RANDOMNESS-AUDIT.md`](RANDOMNESS-AUDIT.md)。可复现审计脚本位于 `scripts/audit-map-randomness.js`。
+
+地图原图更新后，在 macOS 上运行 `node scripts/build-map-share-assets.js`，同步生成分享图片使用的内嵌素材。
