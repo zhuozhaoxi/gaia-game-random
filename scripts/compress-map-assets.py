@@ -19,12 +19,12 @@ BACKGROUND = (16, 21, 25, 255)
 COLOR_COUNTS = (256, 224, 192, 160, 128, 112, 96, 80, 64, 48, 32, 24, 16)
 
 
-def compression_profile(filename: str) -> tuple[int, int, tuple[int, ...]]:
+def compression_profile(filename: str) -> tuple[int, int, tuple[int, ...], bool]:
     if re.fullmatch(r"(?:0[1-9]|10)-实心\.png", filename):
-        return 20_000, 300, (320, 300, 280, 260, 240, 220, 200, 180, 160, 140, 120)
+        return 20_000, 300, (320, 300, 280, 260, 240, 220, 200, 180, 160, 140, 120), False
     if re.fullmatch(r"1[1-8]-(?:实心|空心)\.png", filename):
-        return 10_000, 160, (370, 350, 330, 310, 290, 270, 250, 230, 210, 190, 170, 160, 140, 120, 100)
-    return 5_000, 80, (159, 150, 140, 130, 120, 110, 100, 90, 80, 72, 64, 56, 48)
+        return 10_000, 160, (370, 350, 330, 310, 290, 270, 250, 230, 210, 190, 170, 160, 140, 120, 100), True
+    return 5_000, 80, (159, 150, 140, 130, 120, 110, 100, 90, 80, 72, 64, 56, 48), False
 
 
 def composite(image: Image.Image, size: tuple[int, int]) -> Image.Image:
@@ -57,7 +57,7 @@ def encode(image: Image.Image, width: int, colors: int) -> bytes:
 
 def compress(path: Path) -> tuple[int, int, int, int, float] | None:
     original_size = path.stat().st_size
-    max_bytes, display_width, widths = compression_profile(path.name)
+    max_bytes, display_width, widths, preserve_resolution = compression_profile(path.name)
     if original_size <= max_bytes:
         return None
 
@@ -83,7 +83,10 @@ def compress(path: Path) -> tuple[int, int, int, int, float] | None:
     if not candidates:
         raise RuntimeError(f"无法将 {path.name} 压缩至 {max_bytes} 字节以内")
 
-    score, width, colors, encoded = max(candidates, key=lambda item: (item[0], item[1], item[2]))
+    if preserve_resolution:
+        score, width, colors, encoded = max(candidates, key=lambda item: (item[1], item[0], item[2]))
+    else:
+        score, width, colors, encoded = max(candidates, key=lambda item: (item[0], item[1], item[2]))
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_bytes(encoded)
     os.replace(temporary, path)

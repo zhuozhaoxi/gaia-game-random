@@ -9,7 +9,7 @@
 - `js/map-share-assets.js`：分享图片专用的轻量内嵌地图素材，避免 SVG 图片在截图时丢失。
 - `gaia.html`：配置选项与正式页面集成。
 - `map-debugger/index.html`：独立地图 Debugger，可查看行星坐标、定位格子并检查随机布局。
-- `scripts/compress-map-assets.py`：按页面实际显示尺寸和画质评分，自适应压缩地图 PNG。R2 上限为 20 KB，三角板为 10 KB，特殊单格为 5 KB。
+- `scripts/compress-map-assets.py`：自适应压缩地图 PNG。R2 上限为 20 KB，三角板为 10 KB，特殊单格为 5 KB；三角板优先保留原始分辨率，确保分享图中的编号清晰。
 
 当前规则：
 
