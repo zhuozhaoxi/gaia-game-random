@@ -5,6 +5,8 @@
     const SQRT3 = Math.sqrt(3);
     const MAP_ROTATION = 30;
     const IMAGE_BASE = 'doc/gaia/map';
+    const TRIANGLE_LABEL_OFFSET = 40;
+    const TRIANGLE_LABEL_FONT_SIZE = 8;
     const R2_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
     const R2_POSITIONS = [[0,0],[5,-4],[-5,4],[-1,5],[4,1],[9,-3],[10,-8],[6,-9],[1,-5],[-4,-1]];
     const TRIANGLE_SLOTS = [
@@ -26,6 +28,13 @@
     function key(q, r) { return `${q},${r}`; }
     function distance(q, r) { return Math.max(Math.abs(q), Math.abs(r), Math.abs(-q-r)); }
     function pixel(q, r) { return {x: HEX_SIZE * 1.5 * q, y: HEX_SIZE * SQRT3 * (r + q / 2)}; }
+    function rotatePoint(x, y, degrees) {
+        const angle = degrees * Math.PI / 180;
+        return {
+            x: x * Math.cos(angle) - y * Math.sin(angle),
+            y: x * Math.sin(angle) + y * Math.cos(angle)
+        };
+    }
     function shuffle(items) {
         const result = [...items];
         for (let i = result.length - 1; i > 0; i--) {
@@ -211,6 +220,34 @@
         if (data.rotation) image.setAttribute('transform', `rotate(${data.rotation} ${data.x} ${data.y})`);
         group.appendChild(image);
     }
+    function appendTriangleLabel(group, sector, slotIndex, x, y) {
+        const center = rotatePoint(x, y, MAP_ROTATION);
+        const centerDistance = Math.hypot(center.x, center.y) || 1;
+        const labelX = center.x + center.x / centerDistance * TRIANGLE_LABEL_OFFSET;
+        const labelY = center.y + center.y / centerDistance * TRIANGLE_LABEL_OFFSET;
+        const text = document.createElementNS(NS, 'text');
+        text.textContent = `${sector.number}-${sector.side}`;
+        text.setAttribute('x', labelX);
+        text.setAttribute('y', labelY);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('font-family', 'Nunito, sans-serif');
+        text.setAttribute('font-size', TRIANGLE_LABEL_FONT_SIZE);
+        text.setAttribute('font-weight', '400');
+        text.setAttribute('letter-spacing', '0.4');
+        text.setAttribute('fill', '#587b95');
+        text.setAttribute('stroke', '#07141b');
+        text.setAttribute('stroke-width', '1');
+        text.setAttribute('stroke-linejoin', 'round');
+        text.setAttribute('paint-order', 'stroke fill');
+        text.setAttribute('pointer-events', 'none');
+        text.setAttribute('aria-hidden', 'true');
+        text.dataset.mapTriangleLabel = sector.number;
+        if ([2, 3, 6, 7].includes(slotIndex)) {
+            text.setAttribute('transform', `rotate(90 ${labelX} ${labelY})`);
+        }
+        group.appendChild(text);
+    }
     function boardCells(layout) {
         return [
             ...layout.r2.map(sector => ({
@@ -288,10 +325,13 @@
         const group = document.createElementNS(NS, 'g');
         const imageLayer = document.createElementNS(NS, 'g');
         const seamLayer = document.createElementNS(NS, 'g');
+        const labelLayer = document.createElementNS(NS, 'g');
         group.setAttribute('transform', `rotate(${MAP_ROTATION})`);
         imageLayer.dataset.mapLayer = 'images';
         seamLayer.dataset.mapLayer = 'seams';
+        labelLayer.dataset.mapLayer = 'triangle-labels';
         seamLayer.setAttribute('pointer-events', 'none');
+        labelLayer.setAttribute('pointer-events', 'none');
         group.append(imageLayer, seamLayer);
         layout.r2.forEach(sector => {
             const center = pixel(sector.q, sector.r);
@@ -302,7 +342,7 @@
                 label: `R2 板块 ${sector.number.padStart(2, '0')}，旋转 ${sector.rotation * 60}度`
             });
         });
-        layout.triangles.forEach(sector => {
+        layout.triangles.forEach((sector, slotIndex) => {
             const centers = sector.cells.map(([q, r]) => pixel(q, r));
             const x = centers.reduce((sum, point) => sum + point.x, 0) / centers.length;
             const y = centers.reduce((sum, point) => sum + point.y, 0) / centers.length;
@@ -312,6 +352,7 @@
                 rotation: sector.baseRotation + sector.rotation * 120, rotationStep: sector.rotation,
                 label: `三角板 ${sector.number}，${sector.side}，旋转 ${sector.rotation * 120}度`
             });
+            appendTriangleLabel(labelLayer, sector, slotIndex, x, y);
         });
         layout.specials.forEach(sector => {
             const center = pixel(sector.q, sector.r);
@@ -322,7 +363,7 @@
             });
         });
         appendBoardSeams(seamLayer, layout);
-        svg.replaceChildren(group);
+        svg.replaceChildren(group, labelLayer);
         const bounds = rotatedBounds(layout);
         const padding = 18;
         svg.setAttribute('viewBox', `${bounds.minX-padding} ${bounds.minY-padding} ${bounds.maxX-bounds.minX+padding*2} ${bounds.maxY-bounds.minY+padding*2}`);
