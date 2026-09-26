@@ -14,6 +14,12 @@
             font-family: 'Nunito', sans-serif;
         }
 
+        *,
+        *::before,
+        *::after {
+            box-sizing: inherit;
+        }
+
         .background-container {
             position: relative;
             width: 100%;
@@ -28,74 +34,78 @@
             display: block;
         }
 
+        .scoring-extension-container {
+            max-width: 370px;
+        }
+
         .overlay-image-01 {
             position: absolute;
             top: 29%;
             left: 75%;
-            max-width: 63px;
+            max-width: 17.1%;
         }
 
         .overlay-image-02 {
             position: absolute;
             top: 25%;
             left: 74%;
-            max-width: 65px;
+            max-width: 17.7%;
         }
 
         .overlay-image-03 {
             position: absolute;
             top: 14%;
             left: 71%;
-            max-width: 68px;
+            max-width: 18.5%;
         }
 
         .overlay-image-federation {
             position: absolute;
             top: 52%;
             left: 64%;
-            max-width: 37px;
+            max-width: 10.1%;
         }
 
         .overlay-image-federation-02 {
             position: absolute;
             top: 58%;
             left: 65%;
-            max-width: 35px;
+            max-width: 9.5%;
         }
 
         .overlay-image-federation-04 {
             position: absolute;
             top: 62%;
             left: 57%;
-            max-width: 35px;
+            max-width: 9.5%;
         }
 
         .overlay-image-art-0 {
             position: absolute;
             top: 10%;
             left: 69%;
-            max-width: 50px;
+            max-width: 13.6%;
         }
 
         .overlay-image-art-1 {
             position: absolute;
             top: 10%;
             left: 86%;
-            max-width: 50px;
+            max-width: 13.6%;
         }
 
         .overlay-image-art-2 {
             position: absolute;
             top: 60%;
             left: 69%;
-            max-width: 50px;
+            max-width: 13.6%;
         }
 
         .overlay-image-art-3 {
             position: absolute;
             top: 60%;
             left: 86%;
-            max-width: 50px;
+            max-width: 13.6%;
         }
 
         .overlay-image-coring {
@@ -106,7 +116,7 @@
         }
 
         .content {
-            max-width: 1200px;
+            max-width: 600px;
             margin: 0 auto;
             padding: 10px;
         }
@@ -128,8 +138,8 @@
 
         .form-center {
             max-width: 600px;
-            margin: 10px auto;
-            padding: 15px;
+            margin: 6px auto;
+            padding: 10px 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
@@ -207,17 +217,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
+            gap: 8px;
             width: 100%;
-            margin-top: 14px;
-            padding-top: 12px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px dashed #ddd;
         }
 
         @media (max-width: 768px) {
+            body {
+                padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            }
+
+            .circular-container-wrapper {
+                max-width: 340px;
+                height: 187px;
+            }
+
             .circular-container {
                 transform: scale(0.85);
-                transform-origin: left;
+                transform-origin: top left;
             }
         }
 
@@ -396,7 +415,7 @@
         <table>
             <tr>
                 <td colspan="6">
-                    <div class="background-container">
+                    <div class="background-container scoring-extension-container">
                         <img id="lfScoringExtensionImg" style="max-width:300px; height:auto;width:100%;" alt="Scoring Extension">
                         <img id="coringImg" class="overlay-image-coring">
                         <img id="researchImg" style="max-width: 65px;height:auto;position: absolute;top: 1px;left;right: 1px;">
@@ -487,7 +506,6 @@
             <small style="color:#777;">仅在 4 人且加入扩展时可用</small>
         </div>
     </div>
-    <br>
     <!--    <div style="display: flex; justify-content: center;">-->
     <!--        <button type="submit" class="submit-button">提交</button>-->
     <!--    </div>-->
@@ -496,7 +514,7 @@
 <!-- 在表单下方添加生成图片按钮 -->
 <form class="form-center" id="shareForm">
     <!-- 现有表单内容 -->
-    <div style="display: flex; justify-content: center; margin-top: 10px;">
+    <div style="display: flex; justify-content: center;">
         <button type="button" id="generateImageButton" class="submit-button">生成分享图片</button>
     </div>
 </form>
