@@ -40,7 +40,7 @@ function loadGenerator() {
     const sandbox = {console, Date, Math: sandboxMath};
     sandbox.window = sandbox;
     vm.createContext(sandbox);
-    for (const file of ['js/r2-boards.js', 'js/gaia-map-generator.js']) {
+    for (const file of ['js/r2-boards.js', 'js/gaia-map-core.js', 'js/gaia-map-generator.js']) {
         vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), sandbox, {filename: file});
     }
     return sandbox.GaiaMapGenerator;

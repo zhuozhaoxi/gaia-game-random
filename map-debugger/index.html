@@ -41,19 +41,30 @@
       z-index: 5;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
       border-right: 1px solid rgba(27,32,24,.14);
       background: var(--panel);
       backdrop-filter: blur(22px);
       box-shadow: 12px 0 45px rgba(30,34,25,.05);
     }
 
-    .brand { padding: 28px 26px 22px; border-bottom: 1px solid var(--line); }
+    .brand { flex: 0 0 auto; padding: 28px 26px 22px; border-bottom: 1px solid var(--line); }
     .brand-row { display: flex; align-items: center; gap: 11px; }
     .brand-mark { width: 31px; height: 27px; color: var(--accent); flex: 0 0 auto; }
     .brand h1 { margin: 0; font: 800 18px/1 "Arial Narrow", Inter, sans-serif; letter-spacing: .11em; }
     .brand p { margin: 10px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; }
 
-    .tools { padding: 22px 20px; overflow: auto; }
+    .tools {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 22px 20px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      -webkit-overflow-scrolling: touch;
+    }
     .eyebrow { margin: 0 0 12px 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
     .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 20px; }
     .btn {
@@ -132,7 +143,7 @@
     .help li { display: flex; gap: 9px; align-items: center; }
     .key { min-width: 42px; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: rgba(255,255,255,.5); color: var(--ink); text-align: center; font-size: 9px; }
 
-    .footer { margin-top: auto; padding: 17px 26px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .footer { flex: 0 0 auto; padding: 17px 26px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.5; }
     .footer b { color: var(--ink); }
 
     .workspace { position: relative; min-width: 0; overflow: hidden; cursor: grab; }
@@ -301,11 +312,12 @@
   </main>
 
   <script src="../js/r2-boards.js"></script>
+  <script src="../js/gaia-map-core.js"></script>
   <script>
     (() => {
-      const HEX_SIZE = 18;
-      const SQRT3 = Math.sqrt(3);
-      const MAP_ROTATION = 30;
+      const MAP_CORE = window.GaiaMapCore;
+      const {HEX_SIZE, SQRT3, MAP_ROTATION, R2_POSITIONS, TRIANGLE_SLOTS, SPECIAL_CELLS} = MAP_CORE.constants;
+      const {key, distance, pixel: axialToPixel, placedR2Cells: getPlacedR2Cells} = MAP_CORE;
       const NOTES_KEY = 'hexfield-notes-v1';
       const SPECIALS_KEY = 'hexfield-specials-v1';
       const MAP_LAYOUT_KEY = 'hexfield-map-layout-v1';
@@ -331,7 +343,6 @@
       const R2_BOARD_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
       const PLANET_ORDER = ['red', 'blue', 'yellow', 'brown', 'orange', 'white', 'black'];
       const PLANET_COLORS = { red: '#d94b45', blue: '#4388c9', yellow: '#e0bd34', brown: '#8b5b3d', orange: '#e88b31', white: '#f7f5e8', black: '#232622' };
-      const R2_POSITIONS = [[0,0],[5,-4],[-5,4],[-1,5],[4,1],[9,-3],[10,-8],[6,-9],[1,-5],[-4,-1]];
       const DEFAULT_R2_ASSIGNMENTS = [
         { number: '1', rotation: 0 }, { number: '2', rotation: 0 },
         { number: '3', rotation: 0 }, { number: '4', rotation: 0 },
@@ -343,20 +354,7 @@
       const R2_IMAGE_HEIGHT = HEX_SIZE * SQRT3 * 5;
       const TRIANGLE_IMAGE_HEIGHT = HEX_SIZE * SQRT3 * 2;
       const TRIANGLE_IMAGE_WIDTH = TRIANGLE_IMAGE_HEIGHT * 370 / 328;
-      const TRIANGLE_SLOTS = [
-        { cells: [[-2,-4],[-3,-4],[-2,-5]], rotation: 180 },
-        { cells: [[3,-8],[2,-8],[3,-9]], rotation: 180 },
-        { cells: [[12,-6],[11,-6],[12,-7]], rotation: 180 },
-        { cells: [[9,-10],[9,-11],[10,-11]], rotation: 0 },
-        { cells: [[7,1],[7,0],[8,0]], rotation: 0 },
-        { cells: [[2,5],[2,4],[3,4]], rotation: 0 },
-        { cells: [[-5,7],[-4,6],[-4,7]], rotation: 180 },
-        { cells: [[-7,3],[-7,2],[-6,2]], rotation: 0 }
-      ];
       const DEFAULT_TRIANGLE_ASSIGNMENTS = ['11','12','13','14','15','16','17','18'].map(number => ({number, side: '实心', rotation: 0}));
-      const SPECIAL_CELLS = [[-3,1],[-2,3],[1,2],[-1,-2],[3,-1],[6,-2],[8,-5],[7,-7],[4,-6],[2,-3]];
-      const FLEET_IMAGES = ['舰队-VK.png', '舰队-拓邦.png', '舰队-永恒盖亚.png', '舰队-鹦鹉螺.png'];
-      const OTHER_SPECIAL_IMAGES = ['源行星.png', '小行星.png', '小行星.png', '小行星.png', '小行星.png', '空.png'];
       const SPECIAL_IMAGE_WIDTH = HEX_SIZE * SQRT3;
       const SPECIAL_IMAGE_HEIGHT = HEX_SIZE * 2;
 
@@ -383,11 +381,6 @@
       const cellsByKey = new Map();
       applyMapLayout(mapLayout);
 
-      function key(q, r) { return `${q},${r}`; }
-      function distance(q, r) { return Math.max(Math.abs(q), Math.abs(r), Math.abs(-q-r)); }
-      function axialToPixel(q, r) {
-        return { x: HEX_SIZE * 1.5 * q, y: HEX_SIZE * SQRT3 * (r + q / 2) };
-      }
       function points(cx, cy) {
         const pts = [];
         for (let i = 0; i < 6; i++) {
@@ -395,43 +388,6 @@
           pts.push(`${cx + HEX_SIZE * Math.cos(a)},${cy + HEX_SIZE * Math.sin(a)}`);
         }
         return pts.join(' ');
-      }
-
-      function radiusKeys(cq, cr, radius) {
-        const keys = [];
-        for (let dq = -radius; dq <= radius; dq++) {
-          const drMin = Math.max(-radius, -dq - radius);
-          const drMax = Math.min(radius, -dq + radius);
-          for (let dr = drMin; dr <= drMax; dr++) keys.push(key(cq + dq, cr + dr));
-        }
-        return keys;
-      }
-
-      function rotateAxial(q, r, steps) {
-        let rotatedQ = q, rotatedR = r;
-        const turns = ((steps % 6) + 6) % 6;
-        for (let i = 0; i < turns; i++) {
-          [rotatedQ, rotatedR] = [-rotatedR, rotatedQ + rotatedR];
-        }
-        return [rotatedQ, rotatedR];
-      }
-
-      function getPlacedR2Cells(sector) {
-        const board = R2_BOARD_LIBRARY.boards[sector.number];
-        return radiusKeys(0, 0, 2).map(localKey => {
-          const [localQ, localR] = localKey.split(',').map(Number);
-          const [rotatedQ, rotatedR] = rotateAxial(localQ, localR, sector.rotation || 0);
-          const worldQ = sector.q + rotatedQ;
-          const worldR = sector.r + rotatedR;
-          return {
-            localQ,
-            localR,
-            worldQ,
-            worldR,
-            worldKey: key(worldQ, worldR),
-            planet: board.cellAnnotations[localKey] || null
-          };
-        });
       }
 
       function createDefaultMapLayout() {
@@ -453,14 +409,7 @@
       }
 
       function isValidMapLayout(layout) {
-        if (!layout || !Array.isArray(layout.r2) || layout.r2.length !== 10 || !Array.isArray(layout.triangles) || layout.triangles.length !== 8) return false;
-        const r2Numbers = layout.r2.map(item => String(item.number));
-        const triangleNumbers = layout.triangles.map(item => String(item.number));
-        if (new Set(r2Numbers).size !== 10 || r2Numbers.some(number => !R2_BOARD_LIBRARY.boards[number])) return false;
-        if (!layout.r2.every(item => Number.isInteger(Number(item.rotation)) && Number(item.rotation) >= 0 && Number(item.rotation) <= 5)) return false;
-        if (!r2Numbers.slice(0, 2).every(number => ['1','2','3','4'].includes(number))) return false;
-        if (new Set(triangleNumbers).size !== 8 || triangleNumbers.some(number => Number(number) < 11 || Number(number) > 18)) return false;
-        return layout.triangles.every(item => (item.side === '实心' || item.side === '空心') && (item.rotation == null || (Number.isInteger(Number(item.rotation)) && Number(item.rotation) >= 0 && Number(item.rotation) <= 2)));
+        return MAP_CORE.validateCompactLayout(layout);
       }
 
       function loadMapLayout() {
@@ -477,87 +426,7 @@
       function applyMapLayout(layout) {
         mapLayout = cloneMapLayout(layout);
         R2_SECTORS = mapLayout.r2.map((item, index) => ({...item, q: R2_POSITIONS[index][0], r: R2_POSITIONS[index][1]}));
-        TRIANGLE_SECTORS = mapLayout.triangles.map((item, index) => ({...item, cells: TRIANGLE_SLOTS[index].cells, randomRotation: item.rotation, rotation: TRIANGLE_SLOTS[index].rotation + item.rotation * 120}));
-      }
-
-      function findPlanetConflicts(sectors) {
-        const planetsByCell = new Map();
-        sectors.forEach(sector => getPlacedR2Cells(sector).forEach(cell => {
-          if (cell.planet) planetsByCell.set(cell.worldKey, {...cell, boardNumber: sector.number});
-        }));
-        const directions = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
-        const conflicts = [];
-        planetsByCell.forEach(planet => {
-          directions.forEach(([dq, dr]) => {
-            const neighbor = planetsByCell.get(key(planet.worldQ + dq, planet.worldR + dr));
-            if (!neighbor || neighbor.planet !== planet.planet || planet.worldKey >= neighbor.worldKey) return;
-            conflicts.push({planet: planet.planet, first: planet, second: neighbor});
-          });
-        });
-        return conflicts;
-      }
-
-      function rerollConflictingR2Rotations(sectors, maxPasses = 180) {
-        for (let pass = 0; pass < maxPasses; pass++) {
-          const conflicts = findPlanetConflicts(sectors);
-          if (!conflicts.length) return true;
-          const boardNumbers = new Set(conflicts.flatMap(conflict => [conflict.first.boardNumber, conflict.second.boardNumber]));
-          sectors.forEach(sector => {
-            if (!boardNumbers.has(sector.number)) return;
-            const choices = [0,1,2,3,4,5].filter(rotation => rotation !== sector.rotation);
-            sector.rotation = choices[Math.floor(Math.random() * choices.length)];
-          });
-        }
-        return false;
-      }
-
-      function solveR2Rotations(sectors) {
-        const assignedPlanets = new Map();
-        const neighborCount = index => R2_POSITIONS.reduce((count, position, otherIndex) => {
-          if (index === otherIndex) return count;
-          return count + (distance(R2_POSITIONS[index][0] - position[0], R2_POSITIONS[index][1] - position[1]) === 5 ? 1 : 0);
-        }, 0);
-        const order = sectors.map((_, index) => index).sort((a, b) => neighborCount(b) - neighborCount(a));
-        const directions = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
-
-        function canPlace(planets) {
-          return planets.every(planet => directions.every(([dq, dr]) => assignedPlanets.get(key(planet.worldQ + dq, planet.worldR + dr)) !== planet.planet));
-        }
-
-        function place(position) {
-          if (position === order.length) return true;
-          const sector = sectors[order[position]];
-          const rotations = shuffle([0,1,2,3,4,5]);
-          for (const rotation of rotations) {
-            sector.rotation = rotation;
-            const planets = getPlacedR2Cells(sector).filter(cell => cell.planet);
-            if (!canPlace(planets)) continue;
-            planets.forEach(planet => assignedPlanets.set(planet.worldKey, planet.planet));
-            if (place(position + 1)) return true;
-            planets.forEach(planet => assignedPlanets.delete(planet.worldKey));
-          }
-          return false;
-        }
-
-        return place(0);
-      }
-
-      function createRandomMapLayout() {
-        for (let attempt = 0; attempt < 120; attempt++) {
-          const centralPool = shuffle(['1','2','3','4']).slice(0, 2);
-          const remainingBoards = shuffle(['1','2','3','4','5','6','7','8','9','10'].filter(number => !centralPool.includes(number)));
-          const boardNumbers = [...shuffle(centralPool), ...remainingBoards];
-          const sectors = boardNumbers.map((number, index) => ({number, q: R2_POSITIONS[index][0], r: R2_POSITIONS[index][1], rotation: Math.floor(Math.random() * 6)}));
-          if (!rerollConflictingR2Rotations(sectors) && !solveR2Rotations(sectors)) continue;
-          if (findPlanetConflicts(sectors).length) continue;
-          return {
-            version: 2,
-            generatedAt: new Date().toISOString(),
-            r2: sectors.map(({number, rotation}) => ({number, rotation})),
-            triangles: shuffle(['11','12','13','14','15','16','17','18']).map(number => ({number, side: Math.random() < .5 ? '实心' : '空心', rotation: Math.floor(Math.random() * 3)}))
-          };
-        }
-        throw new Error('R2 rotation solver failed');
+        TRIANGLE_SECTORS = mapLayout.triangles.map((item, index) => ({...item, cells: TRIANGLE_SLOTS[index].cells, randomRotation: item.rotation, rotation: TRIANGLE_SLOTS[index].baseRotation + item.rotation * 120}));
       }
 
       function getUsedCellCoordinates() {
@@ -698,56 +567,12 @@
         localStorage.setItem(SPECIALS_KEY, JSON.stringify(specials));
       }
 
-      function shuffle(items) {
-        const result = [...items];
-        for (let i = result.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [result[i], result[j]] = [result[j], result[i]];
-        }
-        return result;
-      }
-
       function isValidSpecialLayout(layout) {
-        const cellKeys = SPECIAL_CELLS.map(([q, r]) => key(q, r));
-        if (!layout || Object.keys(layout).length !== cellKeys.length || cellKeys.some(cellKey => !layout[cellKey])) return false;
-        const values = Object.values(layout);
-        if (FLEET_IMAGES.some(image => values.filter(value => value === image).length !== 1)) return false;
-        if (values.filter(value => value === '源行星.png').length !== 1 || values.filter(value => value === '小行星.png').length !== 4 || values.filter(value => value === '空.png').length !== 1) return false;
-        const fleets = cellKeys.filter(cellKey => FLEET_IMAGES.includes(layout[cellKey])).map(cellKey => cellKey.split(',').map(Number));
-        return fleets.every((cell, index) => fleets.slice(index + 1).every(other => distance(cell[0] - other[0], cell[1] - other[1]) > 3));
-      }
-
-      function createRandomSpecialLayout() {
-        const combinations = [];
-        for (let a = 0; a < SPECIAL_CELLS.length; a++) {
-          for (let b = a + 1; b < SPECIAL_CELLS.length; b++) {
-            for (let c = b + 1; c < SPECIAL_CELLS.length; c++) {
-              for (let d = c + 1; d < SPECIAL_CELLS.length; d++) {
-                const candidates = [a, b, c, d];
-                const valid = candidates.every((cellIndex, index) => candidates.slice(index + 1).every(otherIndex => {
-                  const [q1, r1] = SPECIAL_CELLS[cellIndex];
-                  const [q2, r2] = SPECIAL_CELLS[otherIndex];
-                  return distance(q1 - q2, r1 - r2) > 3;
-                }));
-                if (valid) combinations.push(candidates);
-              }
-            }
-          }
-        }
-        const fleetIndexes = combinations[Math.floor(Math.random() * combinations.length)];
-        const fleetIndexSet = new Set(fleetIndexes);
-        const shuffledFleets = shuffle(FLEET_IMAGES);
-        const shuffledOthers = shuffle(OTHER_SPECIAL_IMAGES);
-        const layout = {};
-        let fleetCursor = 0, otherCursor = 0;
-        SPECIAL_CELLS.forEach(([q, r], index) => {
-          layout[key(q, r)] = fleetIndexSet.has(index) ? shuffledFleets[fleetCursor++] : shuffledOthers[otherCursor++];
-        });
-        return layout;
+        return MAP_CORE.validateSpecialLayout(MAP_CORE.specialsFromRecord(layout));
       }
 
       if (!isValidSpecialLayout(specials)) {
-        specials = createRandomSpecialLayout();
+        specials = MAP_CORE.specialsToRecord(MAP_CORE.createSpecialLayout());
         saveSpecials();
       }
 
@@ -1041,8 +866,10 @@
         pushHistory();
         randomizeMapBtn.disabled = true;
         try {
-          applyMapLayout(createRandomMapLayout());
-          specials = createRandomSpecialLayout();
+          const generated = MAP_CORE.generate();
+          if (!MAP_CORE.validate(generated).valid) throw new Error('Gaia map core returned an invalid layout');
+          applyMapLayout(MAP_CORE.compactLayout(generated));
+          specials = MAP_CORE.specialsToRecord(generated.specials);
           renderData();
           showToast('地图已重新生成 · 行星相邻冲突 0');
         } catch {

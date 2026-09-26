@@ -2,7 +2,7 @@
 
 审计日期：2026-09-25  
 审计分支：`feature/four-player-expansion-map-generator`  
-被测生成器：`js/gaia-map-generator.js`
+被测生成器：`js/gaia-map-core.js`（通过 `js/gaia-map-generator.js` 暴露同一接口）
 
 ## 结论
 
@@ -181,4 +181,3 @@ node scripts/audit-map-randomness.js 100000 20260926
 2. 按各分支的合法解数量加权选择，而不是找到第一个合法解就返回。
 3. 明确特殊板公平口径：是“21 个合法舰队组合等概率”，还是“十个坐标的舰队边际概率尽量相等”。两种定义不同，后者需要对合法组合做非均匀加权。
 4. 将本审计脚本加入回归测试，修改随机算法后至少运行 100,000 张，并设置位置、方向和正反面分布容差。
-

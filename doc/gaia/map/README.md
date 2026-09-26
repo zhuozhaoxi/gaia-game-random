@@ -5,7 +5,8 @@
 生成器实现位于：
 
 - `js/r2-boards.js`：R2 板块的局部行星坐标与种类。
-- `js/gaia-map-generator.js`：地图布局、旋转、合规检测和 SVG 渲染。
+- `js/gaia-map-core.js`：正式页面与 Debugger 共用的地图随机生成、旋转求解和合规校验规则。
+- `js/gaia-map-generator.js`：正式页面的 SVG 渲染与三角板文字标注。
 - `js/map-share-assets.js`：分享图片专用的轻量内嵌地图素材，避免 SVG 图片在截图时丢失。
 - `gaia.html`：配置选项与正式页面集成。
 - `map-debugger/index.html`：独立地图 Debugger，可查看行星坐标、定位格子并检查随机布局。
@@ -19,7 +20,7 @@
 - 11–18 三角板随机位置、随机实心/空心，并独立随机旋转 `0–2 × 120°`。
 - 4 个舰队特殊板块两两距离必须大于 3。
 
-独立的地图 Debugger 已收录在仓库的 `map-debugger/` 目录，并复用正式页面的地图数据和图片素材。
+独立的地图 Debugger 已收录在仓库的 `map-debugger/` 目录，并与正式页面共同调用 `GaiaMapCore.generate()`，不会维护第二套随机算法。
 
 随机分布与公平性压测结果见 [`RANDOMNESS-AUDIT.md`](RANDOMNESS-AUDIT.md)。可复现审计脚本位于 `scripts/audit-map-randomness.js`。
 
