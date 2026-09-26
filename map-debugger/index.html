@@ -126,11 +126,16 @@
     .debug-toggle.active::after { content: '已开启'; color: var(--accent); }
     .debug-panel { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.35); overflow: hidden; }
     .debug-panel[hidden] { display: none; }
-    .debug-summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .debug-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 9px 8px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
     .debug-summary strong { color: var(--ink); font-size: 11px; }
+    .debug-highlight-all { padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.45); color: var(--muted); font: inherit; font-weight: 750; cursor: pointer; }
+    .debug-highlight-all:hover { color: var(--ink); border-color: rgba(200,85,61,.35); }
+    .debug-highlight-all.active { color: var(--accent); border-color: rgba(200,85,61,.45); background: rgba(200,85,61,.1); }
     .debug-groups { max-height: 360px; overflow: auto; padding: 5px 8px 9px; }
     .debug-group { padding-top: 7px; }
-    .debug-group-head { display: flex; align-items: center; gap: 7px; padding: 4px 4px 6px; color: var(--muted); font-size: 10px; font-weight: 750; }
+    .debug-group-head { width: 100%; display: flex; align-items: center; gap: 7px; padding: 4px 4px 6px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 10px; font-weight: 750; text-align: left; cursor: pointer; }
+    .debug-group-head:hover { background: rgba(27,32,24,.07); color: var(--ink); }
+    .debug-group-head.active { background: rgba(215,161,59,.18); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(215,161,59,.42); }
     .debug-group-head b { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
     .planet-dot { width: 9px; height: 9px; border: 1px solid rgba(27,32,24,.32); border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
     .debug-coordinate { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin: 2px 0; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; color: var(--ink); font-size: 10px; text-align: left; }
@@ -267,10 +272,13 @@
         </section>
 
         <section class="section debug-section">
-          <p class="eyebrow">行星坐标调试</p>
+          <p class="eyebrow">地图元素坐标调试</p>
           <button class="btn debug-toggle" id="debugToggle" type="button" aria-expanded="false" aria-controls="debugPanel">Debugger 模式</button>
           <div class="debug-panel" id="debugPanel" hidden>
-            <div class="debug-summary"><span>按行星种类分组</span><strong id="debugTotal">0 个行星</strong></div>
+            <div class="debug-summary">
+              <button class="debug-highlight-all" id="debugHighlightAll" type="button" aria-pressed="false">高亮全部</button>
+              <strong id="debugTotal">0 个标注</strong>
+            </div>
             <div class="debug-groups" id="debugGroups"></div>
           </div>
         </section>
@@ -279,6 +287,7 @@
           <p class="eyebrow">操作</p>
           <ul class="help">
             <li><span class="key">点击</span> 选择格子并填写标注</li>
+            <li><span class="key">分类</span> 高亮全部同类坐标</li>
             <li><span class="key">随机</span> 重新生成合规地图</li>
             <li><span class="key">拖拽</span> 移动画布</li>
             <li><span class="key">滚轮</span> 缩放地图</li>
@@ -317,7 +326,7 @@
     (() => {
       const MAP_CORE = window.GaiaMapCore;
       const {HEX_SIZE, SQRT3, MAP_ROTATION, R2_POSITIONS, TRIANGLE_SLOTS, SPECIAL_CELLS} = MAP_CORE.constants;
-      const {key, distance, pixel: axialToPixel, placedR2Cells: getPlacedR2Cells} = MAP_CORE;
+      const {key, distance, pixel: axialToPixel, placedR2Cells: getPlacedR2Cells, placedTriangleCells: getPlacedTriangleCells, specialCellType: getSpecialCellType} = MAP_CORE;
       const NOTES_KEY = 'hexfield-notes-v1';
       const SPECIALS_KEY = 'hexfield-specials-v1';
       const MAP_LAYOUT_KEY = 'hexfield-map-layout-v1';
@@ -338,11 +347,11 @@
       const debugPanel = document.getElementById('debugPanel');
       const debugGroups = document.getElementById('debugGroups');
       const debugTotal = document.getElementById('debugTotal');
+      const debugHighlightAll = document.getElementById('debugHighlightAll');
       const randomizeMapBtn = document.getElementById('randomizeMapBtn');
       const NS = 'http://www.w3.org/2000/svg';
-      const R2_BOARD_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
-      const PLANET_ORDER = ['red', 'blue', 'yellow', 'brown', 'orange', 'white', 'black'];
-      const PLANET_COLORS = { red: '#d94b45', blue: '#4388c9', yellow: '#e0bd34', brown: '#8b5b3d', orange: '#e88b31', white: '#f7f5e8', black: '#232622' };
+      const BOARD_LIBRARY = window.GAIA_BOARD_LIBRARY || window.GAIA_R2_BOARD_LIBRARY;
+      const CELL_TYPE_ORDER = [...BOARD_LIBRARY.standardPlanetTypes, 'asteroid', 'source', 'transdim', 'gaia'];
       const DEFAULT_R2_ASSIGNMENTS = [
         { number: '1', rotation: 0 }, { number: '2', rotation: 0 },
         { number: '3', rotation: 0 }, { number: '4', rotation: 0 },
@@ -376,7 +385,8 @@
       let toastTimer;
       let noteEditSnapshot = null;
       let debugMode = false;
-      let debugHighlightedCell = null;
+      const debugHighlightedCells = new Set();
+      let debugHighlightedType = null;
       const undoStack = [];
       const cellsByKey = new Map();
       applyMapLayout(mapLayout);
@@ -426,7 +436,13 @@
       function applyMapLayout(layout) {
         mapLayout = cloneMapLayout(layout);
         R2_SECTORS = mapLayout.r2.map((item, index) => ({...item, q: R2_POSITIONS[index][0], r: R2_POSITIONS[index][1]}));
-        TRIANGLE_SECTORS = mapLayout.triangles.map((item, index) => ({...item, cells: TRIANGLE_SLOTS[index].cells, randomRotation: item.rotation, rotation: TRIANGLE_SLOTS[index].baseRotation + item.rotation * 120}));
+        TRIANGLE_SECTORS = mapLayout.triangles.map((item, index) => ({
+          ...item,
+          cells: TRIANGLE_SLOTS[index].cells,
+          baseRotation: TRIANGLE_SLOTS[index].baseRotation,
+          randomRotation: item.rotation,
+          displayRotation: TRIANGLE_SLOTS[index].baseRotation + item.rotation * 120
+        }));
       }
 
       function getUsedCellCoordinates() {
@@ -460,9 +476,13 @@
 
       window.hexfieldGetR2CellInfo = (boardNumber, centerQ, centerR, rotation = 0) => {
         const number = String(boardNumber);
-        if (!R2_BOARD_LIBRARY.boards[number]) return [];
+        if (!BOARD_LIBRARY.boards[number]) return [];
         return getPlacedR2Cells({number, q: centerQ, r: centerR, rotation});
       };
+
+      function cellTypeLabel(cellType) {
+        return BOARD_LIBRARY.cellTypes[cellType]?.label || '空域';
+      }
 
       function appendBoardImage(fragment, {number, imageName, x, y, width, height, rotation = 0, rotationStep = null, label}) {
         const image = document.createElementNS(NS, 'image');
@@ -488,23 +508,28 @@
           delete cell.dataset.boardNumber;
           delete cell.dataset.boardLocalQ;
           delete cell.dataset.boardLocalR;
+          delete cell.dataset.boardLocalAngle;
+          delete cell.dataset.boardSide;
+          delete cell.dataset.boardType;
+          delete cell.dataset.cellType;
           delete cell.dataset.planet;
           const cellKey = key(cell.dataset.q, cell.dataset.r);
           cell.querySelector('title').textContent = notes[cellKey] || `坐标 Q ${cell.dataset.q} / R ${cell.dataset.r}`;
         });
         R2_SECTORS.forEach(sector => {
-          const board = R2_BOARD_LIBRARY.boards[sector.number];
+          const board = BOARD_LIBRARY.boards[sector.number];
           const placedCells = getPlacedR2Cells(sector);
           placedCells.forEach(placed => {
             const cell = cellsByKey.get(placed.worldKey);
             if (!cell) return;
             cell.dataset.boardNumber = sector.number;
+            cell.dataset.boardType = 'r2';
             cell.dataset.boardLocalQ = placed.localQ;
             cell.dataset.boardLocalR = placed.localR;
+            if (placed.cellType) cell.dataset.cellType = placed.cellType;
             if (placed.planet) cell.dataset.planet = placed.planet;
-            const planetName = placed.planet ? `${R2_BOARD_LIBRARY.planetTypes[placed.planet]}色行星` : '空域';
             const userNote = notes[placed.worldKey] ? `${notes[placed.worldKey]} · ` : '';
-            cell.querySelector('title').textContent = `${userNote}板块 ${sector.number.padStart(2, '0')} · 局部 Q ${placed.localQ} / R ${placed.localR} · ${planetName}`;
+            cell.querySelector('title').textContent = `${userNote}板块 ${sector.number.padStart(2, '0')} · 局部 Q ${placed.localQ} / R ${placed.localR} · ${cellTypeLabel(placed.cellType)}`;
           });
           const {x, y} = axialToPixel(sector.q, sector.r);
           appendBoardImage(fragment, {
@@ -519,6 +544,17 @@
           });
         });
         TRIANGLE_SECTORS.forEach(sector => {
+          getPlacedTriangleCells(sector).forEach(placed => {
+            const cell = cellsByKey.get(placed.worldKey);
+            if (!cell) return;
+            cell.dataset.boardNumber = sector.number;
+            cell.dataset.boardType = 'triangle';
+            cell.dataset.boardSide = sector.side;
+            cell.dataset.boardLocalAngle = placed.localAngle;
+            if (placed.cellType) cell.dataset.cellType = placed.cellType;
+            const userNote = notes[placed.worldKey] ? `${notes[placed.worldKey]} · ` : '';
+            cell.querySelector('title').textContent = `${userNote}三角板 ${sector.number} · ${sector.side} · 局部 ${placed.localAngle}° · ${cellTypeLabel(placed.cellType)}`;
+          });
           const centers = sector.cells.map(([q, r]) => axialToPixel(q, r));
           const x = centers.reduce((sum, point) => sum + point.x, 0) / centers.length;
           const y = centers.reduce((sum, point) => sum + point.y, 0) / centers.length;
@@ -528,7 +564,7 @@
             x, y,
             width: TRIANGLE_IMAGE_WIDTH,
             height: TRIANGLE_IMAGE_HEIGHT,
-            rotation: sector.rotation,
+            rotation: sector.displayRotation,
             rotationStep: sector.randomRotation,
             label: `${sector.number} 号三角游戏板块（${sector.side} · 随机旋转 ${sector.randomRotation * 120}°）`
           });
@@ -538,6 +574,15 @@
           const imageName = specials[cellKey];
           if (!imageName) return;
           const {x, y} = axialToPixel(q, r);
+          const cell = cellsByKey.get(cellKey);
+          const cellType = getSpecialCellType(imageName);
+          if (cell) {
+            cell.dataset.boardNumber = imageName.replace('.png', '');
+            cell.dataset.boardType = 'special';
+            if (cellType) cell.dataset.cellType = cellType;
+            const userNote = notes[cellKey] ? `${notes[cellKey]} · ` : '';
+            cell.querySelector('title').textContent = `${userNote}特殊板块 ${imageName.replace('.png', '')} · ${cellTypeLabel(cellType)}`;
+          }
           appendBoardImage(fragment, {
             number: imageName.replace('.png', ''),
             imageName,
@@ -689,41 +734,61 @@
       }
 
       function clearDebugHighlight() {
-        if (debugHighlightedCell) debugHighlightedCell.classList.remove('debug-highlight');
-        debugHighlightedCell = null;
-        debugGroups.querySelector('.debug-coordinate.active')?.classList.remove('active');
+        debugHighlightedCells.forEach(cell => cell.classList.remove('debug-highlight'));
+        debugHighlightedCells.clear();
+        debugHighlightedType = null;
+        debugHighlightAll.classList.remove('active');
+        debugHighlightAll.setAttribute('aria-pressed', 'false');
+        debugGroups.querySelectorAll('.debug-coordinate.active').forEach(button => button.classList.remove('active'));
+        debugGroups.querySelectorAll('.debug-group-head.active').forEach(button => {
+          button.classList.remove('active');
+          button.setAttribute('aria-pressed', 'false');
+        });
       }
 
       function renderDebugger() {
-        const entries = R2_SECTORS.flatMap(sector => getPlacedR2Cells(sector)
-          .filter(cell => cell.planet)
-          .map(cell => ({...cell, boardNumber: sector.number})))
-          .sort((a, b) => Number(a.boardNumber) - Number(b.boardNumber) || a.worldQ - b.worldQ || a.worldR - b.worldR);
+        const entries = [
+          ...R2_SECTORS.flatMap(sector => getPlacedR2Cells(sector)
+            .filter(cell => cell.cellType)
+            .map(cell => ({...cell, boardLabel: `板块 ${sector.number.padStart(2, '0')}`, localLabel: `局部 Q ${cell.localQ} / R ${cell.localR}`}))),
+          ...TRIANGLE_SECTORS.flatMap(sector => getPlacedTriangleCells(sector)
+            .filter(cell => cell.cellType)
+            .map(cell => ({...cell, boardLabel: `三角板 ${sector.number}-${sector.side}`, localLabel: `局部 ${cell.localAngle}°`}))),
+          ...SPECIAL_CELLS.map(([q, r]) => {
+            const imageName = specials[key(q, r)];
+            return {worldQ: q, worldR: r, worldKey: key(q, r), cellType: getSpecialCellType(imageName), boardLabel: `特殊板块 ${imageName?.replace('.png', '')}`, localLabel: '单格'};
+          }).filter(cell => cell.cellType)
+        ].sort((a, b) => CELL_TYPE_ORDER.indexOf(a.cellType) - CELL_TYPE_ORDER.indexOf(b.cellType) || a.boardLabel.localeCompare(b.boardLabel, 'zh-CN') || a.worldQ - b.worldQ || a.worldR - b.worldR);
         const fragment = document.createDocumentFragment();
-        PLANET_ORDER.forEach(planet => {
-          const planetEntries = entries.filter(entry => entry.planet === planet);
+        CELL_TYPE_ORDER.forEach(cellType => {
+          const typeEntries = entries.filter(entry => entry.cellType === cellType);
+          if (!typeEntries.length) return;
           const group = document.createElement('section');
           group.className = 'debug-group';
-          const head = document.createElement('div');
+          const head = document.createElement('button');
+          head.type = 'button';
           head.className = 'debug-group-head';
+          head.dataset.cellType = cellType;
+          head.setAttribute('aria-pressed', 'false');
+          head.title = `高亮所有${cellTypeLabel(cellType)}`;
           const dot = document.createElement('span');
           dot.className = 'planet-dot';
-          dot.style.background = PLANET_COLORS[planet];
-          head.append(dot, document.createTextNode(`${R2_BOARD_LIBRARY.planetTypes[planet]}色行星`));
+          dot.style.background = BOARD_LIBRARY.cellTypes[cellType].color;
+          head.append(dot, document.createTextNode(cellTypeLabel(cellType)));
           const count = document.createElement('b');
-          count.textContent = planetEntries.length;
+          count.textContent = typeEntries.length;
           head.appendChild(count);
           group.appendChild(head);
-          planetEntries.forEach(entry => {
+          typeEntries.forEach(entry => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'debug-coordinate';
             button.dataset.worldKey = entry.worldKey;
-            button.dataset.planet = entry.planet;
-            button.title = `板块 ${entry.boardNumber.padStart(2, '0')} · 局部 Q ${entry.localQ} / R ${entry.localR}`;
+            button.dataset.cellType = entry.cellType;
+            button.title = `${entry.boardLabel} · ${entry.localLabel}`;
             const board = document.createElement('span');
             board.className = 'debug-board';
-            board.textContent = `板块 ${entry.boardNumber.padStart(2, '0')}`;
+            board.textContent = entry.boardLabel;
             const coord = document.createElement('span');
             coord.className = 'debug-coord';
             coord.textContent = `Q ${entry.worldQ} / R ${entry.worldR}`;
@@ -733,7 +798,7 @@
           fragment.appendChild(group);
         });
         debugGroups.replaceChildren(fragment);
-        debugTotal.textContent = `${entries.length} 个行星`;
+        debugTotal.textContent = `${entries.length} 个标注`;
       }
 
       function setDebugMode(enabled) {
@@ -775,9 +840,14 @@
         selectedCell = cell;
         selectedCell.classList.add('selected');
         selectedKey = key(cell.dataset.q, cell.dataset.r);
-        const boardInfo = cell.dataset.boardNumber
-          ? ` · 板块 ${cell.dataset.boardNumber.padStart(2, '0')} · 局部 ${cell.dataset.boardLocalQ}/${cell.dataset.boardLocalR}${cell.dataset.planet ? ` · ${R2_BOARD_LIBRARY.planetTypes[cell.dataset.planet]}色行星` : ' · 空域'}`
-          : '';
+        let boardInfo = '';
+        if (cell.dataset.boardType === 'r2') {
+          boardInfo = ` · 板块 ${cell.dataset.boardNumber.padStart(2, '0')} · 局部 ${cell.dataset.boardLocalQ}/${cell.dataset.boardLocalR} · ${cellTypeLabel(cell.dataset.cellType)}`;
+        } else if (cell.dataset.boardType === 'triangle') {
+          boardInfo = ` · 三角板 ${cell.dataset.boardNumber}-${cell.dataset.boardSide} · 局部 ${cell.dataset.boardLocalAngle}° · ${cellTypeLabel(cell.dataset.cellType)}`;
+        } else if (cell.dataset.boardType === 'special') {
+          boardInfo = ` · 特殊板块 ${cell.dataset.boardNumber} · ${cellTypeLabel(cell.dataset.cellType)}`;
+        }
         annotationCoord.textContent = `Q ${cell.dataset.q} · R ${cell.dataset.r}${boardInfo}`;
         annotationInput.value = notes[selectedKey] || '';
       }
@@ -849,18 +919,52 @@
       document.getElementById('zoomOut').addEventListener('click', () => zoomAt(.83, workspace.clientWidth/2, workspace.clientHeight/2));
       document.getElementById('resetView').addEventListener('click', resetView);
       debugToggle.addEventListener('click', () => setDebugMode(!debugMode));
+      debugHighlightAll.addEventListener('click', () => {
+        if (!debugMode) return;
+        const wasActive = debugHighlightedType === 'all';
+        clearDebugHighlight();
+        if (wasActive) return showToast('全部标注 · 已取消高亮');
+        debugGroups.querySelectorAll('.debug-coordinate').forEach(button => {
+          const cell = cellsByKey.get(button.dataset.worldKey);
+          if (!cell) return;
+          cell.classList.add('debug-highlight');
+          debugHighlightedCells.add(cell);
+        });
+        debugHighlightedType = 'all';
+        debugHighlightAll.classList.add('active');
+        debugHighlightAll.setAttribute('aria-pressed', 'true');
+        showToast(`全部标注 · 已高亮 ${debugHighlightedCells.size} 个坐标`);
+      });
       debugGroups.addEventListener('click', e => {
+        const groupHead = e.target.closest('.debug-group-head');
+        if (groupHead && debugMode) {
+          const cellType = groupHead.dataset.cellType;
+          const wasActive = debugHighlightedType === cellType;
+          clearDebugHighlight();
+          if (wasActive) return showToast(`${cellTypeLabel(cellType)} · 已取消高亮`);
+          debugGroups.querySelectorAll(`.debug-coordinate[data-cell-type="${CSS.escape(cellType)}"]`).forEach(button => {
+            const cell = cellsByKey.get(button.dataset.worldKey);
+            if (!cell) return;
+            cell.classList.add('debug-highlight');
+            debugHighlightedCells.add(cell);
+          });
+          debugHighlightedType = cellType;
+          groupHead.classList.add('active');
+          groupHead.setAttribute('aria-pressed', 'true');
+          showToast(`${cellTypeLabel(cellType)} · 已高亮 ${debugHighlightedCells.size} 个坐标`);
+          return;
+        }
         const button = e.target.closest('.debug-coordinate');
         if (!button || !debugMode) return;
         const cell = cellsByKey.get(button.dataset.worldKey);
         if (!cell) return showToast('找不到该坐标的地图格');
         clearDebugHighlight();
-        debugHighlightedCell = cell;
-        debugHighlightedCell.classList.add('debug-highlight');
+        debugHighlightedCells.add(cell);
+        cell.classList.add('debug-highlight');
         button.classList.add('active');
         selectCell(cell);
         focusCell(Number(cell.dataset.q), Number(cell.dataset.r));
-        showToast(`${R2_BOARD_LIBRARY.planetTypes[button.dataset.planet]}色行星 · 已定位 Q ${cell.dataset.q} / R ${cell.dataset.r}`);
+        showToast(`${cellTypeLabel(button.dataset.cellType)} · 已定位 Q ${cell.dataset.q} / R ${cell.dataset.r}`);
       });
       randomizeMapBtn.addEventListener('click', () => {
         pushHistory();

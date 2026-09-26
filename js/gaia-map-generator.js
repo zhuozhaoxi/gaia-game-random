@@ -8,7 +8,7 @@
     const IMAGE_BASE = 'doc/gaia/map';
     const TRIANGLE_LABEL_OFFSET = 40;
     const TRIANGLE_LABEL_FONT_SIZE = 9;
-    const R2_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
+    const R2_LIBRARY = window.GAIA_BOARD_LIBRARY || window.GAIA_R2_BOARD_LIBRARY;
     const NS = 'http://www.w3.org/2000/svg';
 
     const {pixel, placedR2Cells, rotatedBounds} = CORE;

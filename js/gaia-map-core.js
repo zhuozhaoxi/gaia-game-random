@@ -1,8 +1,8 @@
 (function () {
     'use strict';
 
-    const R2_LIBRARY = window.GAIA_R2_BOARD_LIBRARY;
-    if (!R2_LIBRARY) throw new Error('GAIA_R2_BOARD_LIBRARY must be loaded before gaia-map-core.js');
+    const R2_LIBRARY = window.GAIA_BOARD_LIBRARY || window.GAIA_R2_BOARD_LIBRARY;
+    if (!R2_LIBRARY) throw new Error('GAIA_BOARD_LIBRARY must be loaded before gaia-map-core.js');
 
     const HEX_SIZE = 18;
     const SQRT3 = Math.sqrt(3);
@@ -58,6 +58,7 @@
             const [rotatedQ, rotatedR] = rotateAxial(localQ, localR, sector.rotation || 0);
             const q = sector.q + rotatedQ;
             const r = sector.r + rotatedR;
+            const cellType = board.cellAnnotations[localKey] || null;
             return {
                 q,
                 r,
@@ -66,10 +67,41 @@
                 worldKey: key(q, r),
                 localQ,
                 localR,
-                planet: board.cellAnnotations[localKey] || null,
+                cellType,
+                planet: R2_LIBRARY.standardPlanetTypes.includes(cellType) ? cellType : null,
                 boardNumber: sector.number
             };
         });
+    }
+    function placedTriangleCells(sector) {
+        const board = R2_LIBRARY.triangleBoards?.[String(sector.number)]?.[sector.side];
+        const centers = sector.cells.map(([q, r]) => ({q, r, ...pixel(q, r)}));
+        const centerX = centers.reduce((sum, point) => sum + point.x, 0) / centers.length;
+        const centerY = centers.reduce((sum, point) => sum + point.y, 0) / centers.length;
+        const rotation = (Number(sector.baseRotation) || 0) + (Number(sector.rotation) || 0) * 120;
+        const inverseAngle = -rotation * Math.PI / 180;
+        return centers.map(point => {
+            const dx = point.x - centerX;
+            const dy = point.y - centerY;
+            const localX = dx * Math.cos(inverseAngle) - dy * Math.sin(inverseAngle);
+            const localY = dx * Math.sin(inverseAngle) + dy * Math.cos(inverseAngle);
+            const angle = (Math.round(Math.atan2(localY, localX) * 180 / Math.PI / 120) * 120 + 360) % 360;
+            const cellType = board?.cellAnnotations?.[String(angle)] || null;
+            return {
+                q: point.q,
+                r: point.r,
+                worldQ: point.q,
+                worldR: point.r,
+                worldKey: key(point.q, point.r),
+                localAngle: angle,
+                cellType,
+                boardNumber: String(sector.number),
+                boardSide: sector.side
+            };
+        });
+    }
+    function specialCellType(imageName) {
+        return R2_LIBRARY.specialBoards?.[imageName]?.cellAnnotation || null;
     }
     function planetConflicts(sectors) {
         const planets = new Map();
@@ -302,6 +334,8 @@
         distance,
         pixel,
         placedR2Cells,
+        placedTriangleCells,
+        specialCellType,
         planetConflicts,
         rotatedBounds,
         createSpecialLayout,
